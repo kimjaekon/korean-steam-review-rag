@@ -1,0 +1,11 @@
+# docker-compose.override.yml
+# 로컬 개발 전용 덧칠. docker compose up 시 base 위에 자동 병합된다.
+# 여기서는 DB 포트를 호스트로 노출해 컨테이너 밖(psql·VSCode·FastAPI)에서 접속 가능하게 한다.
+
+services:
+  db:
+    # "호스트포트:컨테이너포트" — 내 PC 의 5432 로 온 접속을 컨테이너의 5432 로 넘김.
+    # ${DB_PORT:-5432} = .env 에 DB_PORT 있으면 그 값, 없으면 5432.
+    # (이미 5432 를 다른 Postgres 가 쓰고 있으면 .env 에서 DB_PORT=5433 등으로 바꾸면 됨)
+    ports:
+      - "${DB_PORT:-5432}:5432"

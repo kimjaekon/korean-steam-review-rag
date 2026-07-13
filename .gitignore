@@ -2,21 +2,45 @@
 .venv/
 
 # ── 파이썬 캐시·빌드 산출물 ──
-__pycache__/           # 파이썬이 자동 생성하는 바이트코드 캐시 폴더
-*.py[cod]              # 컴파일된 파이썬 파일 (.pyc / .pyo / .pyd)
-*.egg-info/            # 패키지 빌드 시 생기는 메타데이터
-build/                 # 빌드 결과물
-dist/                  # 배포 패키지
+
+# 파이썬이 자동 생성하는 바이트코드 캐시 폴더
+__pycache__/           
+
+# 컴파일된 파이썬 파일 (.pyc / .pyo / .pyd)
+*.py[cod]              
+
+# 패키지 빌드 시 생기는 메타데이터
+*.egg-info/            
+
+# 빌드 결과물
+build/       
+
+# 배포 패키지
+dist/                  
 
 # ── 비밀·환경 설정 (실제 값이 든 .env 는 커밋 금지) ──
-.env                   # 실제 환경변수 (비밀번호·키 포함) → 커밋 금지
-!.env.example          # 단, 템플릿(.env.example)은 커밋 (! = 제외의 예외 = 포함)
+
+# 실제 환경변수 (비밀번호·키 포함) → 커밋 금지
+.env                    
+
+# 단, 템플릿(.env.example)은 커밋 (! = 제외의 예외 = 포함)
+!.env.example           
 
 # ── 도구 캐시 ──
-.ruff_cache/           # Ruff 검사 캐시
-.mypy_cache/           # mypy 검사 캐시
-.pytest_cache/         # pytest 실행 캐시
+
+# Ruff 검사 캐시
+.ruff_cache/            
+
+# mypy 검사 캐시
+.mypy_cache/      
+
+# pytest 실행 캐시
+.pytest_cache/          
 
 # ── OS·에디터 잡파일 ──
-.DS_Store              # macOS 폴더 메타 (협업자가 Mac일 때 대비)
-Thumbs.db              # Windows 썸네일 캐시
+
+# macOS 폴더 메타 (협업자가 Mac일 때 대비)
+.DS_Store              
+
+# Windows 썸네일 캐시
+Thumbs.db              

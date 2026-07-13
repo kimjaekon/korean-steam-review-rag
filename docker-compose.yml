@@ -1,0 +1,37 @@
+# docker-compose.yml
+# 환경 불문 공통 서비스 정의. 로컬 전용 설정은 docker-compose.override.yml 에 둔다.
+
+services:
+  # ── PostgreSQL + pgvector ──
+  # pgvector: 벡터(임베딩)를 저장하고 유사도 검색을 하게 해주는 Postgres 확장.
+  # ERD의 REVIEW_EMBEDDING.embedding 이 vector(768) 타입이라 확장 내장 이미지가 필요.
+  db:
+    # pgvector 팀이 배포하는 공식 이미지: Postgres 16 + pgvector 확장이 미리 설치됨.
+    # 태그를 핀으로 고정 → 누가·언제 띄워도 동일한 버전이 뜬다(재현성).
+    image: pgvector/pgvector:pg16
+    # 컨테이너 이름 고정 → docker ps / docker logs 에서 알아보기 쉽게.
+    container_name: steam_rag_db
+    # 아래 환경변수로 이 Postgres 이미지가 최초 기동 시 DB·계정·비번을 만든다.
+    # ${VAR:-기본값} = .env 에 VAR 이 있으면 그 값, 없으면 기본값 사용.
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-steam_rag}          # 만들 데이터베이스 이름
+      POSTGRES_USER: ${POSTGRES_USER:-steam}          # 접속 계정
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-steam}  # 계정 비밀번호 (로컬 기본값)
+    # 명명 볼륨(named volume): 컨테이너를 지워도 DB 데이터가 남게 호스트에 보관.
+    # /var/lib/postgresql/data 는 Postgres 가 실제 데이터를 쓰는 컨테이너 내부 경로.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # 헬스체크: "이 컨테이너가 실제로 접속 가능한 상태인가"를 Docker 가 주기적으로 확인.
+    # pg_isready = Postgres 가 연결을 받을 준비가 됐는지 묻는 공식 명령.
+    # Slice 1 이후 앱 컨테이너가 depends_on: condition: service_healthy 로 이걸 기다린다.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-steam} -d ${POSTGRES_DB:-steam_rag}"]
+      interval: 5s   # 5초마다 검사
+      timeout: 3s    # 3초 안에 응답 없으면 실패로 간주
+      retries: 5     # 5번 연속 실패하면 unhealthy 로 표시
+    # 컨테이너가 죽으면 자동 재시작(수동 stop 은 제외).
+    restart: unless-stopped
+
+# 위에서 참조한 명명 볼륨을 여기서 선언. Docker 가 관리하는 영속 저장소.
+volumes:
+  pgdata:
