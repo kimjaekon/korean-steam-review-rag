@@ -1,0 +1,22 @@
+{
+  // ── 파이썬 인터프리터: VSCode가 어느 파이썬을 쓸지 ──
+  // Windows의 venv는 bin이 아니라 Scripts 폴더에 python.exe 가 있음 (ARCHITECTURE §1)
+  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+
+  // ── 저장할 때마다 자동 실행할 동작 ──
+  "editor.formatOnSave": true,           // 저장 시 자동 포맷 켜기
+  "editor.codeActionsOnSave": {
+    // Ruff가 고칠 수 있는 문제(스타일 등)를 저장 시 자동 수정
+    "source.fixAll.ruff": "explicit",
+    // import 정렬(Ruff의 I 규칙)을 저장 시 자동 적용
+    "source.organizeImports.ruff": "explicit"
+  },
+
+  // ── 파이썬 파일의 기본 포매터를 Ruff로 지정 ──
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"  // Ruff 공식 확장 ID
+  },
+
+  // ── mypy 타입 검사 켜기 (ms-python.mypy-type-checker 확장 사용) ──
+  "mypy-type-checker.importStrategy": "fromEnvironment"  // venv에 깔린 mypy를 사용
+}

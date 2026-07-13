@@ -1,0 +1,6 @@
+-r requirements.txt   # 위에서 만든 런타임 의존성 전부 포함 (-r = 다른 목록 파일을 읽어옴)
+
+ruff                  # 린터 겸 포매터 (코드 검사 + 자동 정렬·포맷). Black·isort·flake8을 하나로 대체
+mypy                  # 정적 타입 검사기 (실행 전에 타입 실수를 미리 잡음)
+pytest                # 테스트 실행 도구 (test_ 로 시작하는 함수를 자동으로 찾아 돌림)
+invoke                # 태스크 실행기 (invoke up, invoke test 처럼 자주 쓰는 명령을 모음. Windows엔 make가 없어서 사용)

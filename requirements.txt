@@ -1,0 +1,7 @@
+fastapi==0.115.*          # 웹 API 프레임워크 (엔드포인트 정의·요청 검증·자동 문서)
+uvicorn[standard]==0.32.* # ASGI 서버 (FastAPI 앱을 실제로 띄워 HTTP 요청을 받음). [standard]=성능 옵션 묶음
+pydantic==2.*             # 데이터 검증·직렬화 (타입에 맞는지 확인하고 변환). FastAPI가 내부적으로 사용
+pydantic-settings==2.*    # .env 파일·환경변수를 Pydantic 모델로 읽어오는 설정 로더 (F0.3에서 사용)
+sqlalchemy==2.*           # ORM (파이썬 객체 ↔ DB 테이블 매핑). Slice 2에서 본격 사용
+psycopg[binary]==3.*      # PostgreSQL 드라이버 (파이썬에서 Postgres에 접속). [binary]=컴파일된 버전이라 설치 간편
+httpx==0.27.*             # HTTP 클라이언트 (웹에서 데이터 받아옴, 동기·비동기 모두 지원). Slice 1 수집기에서 사용

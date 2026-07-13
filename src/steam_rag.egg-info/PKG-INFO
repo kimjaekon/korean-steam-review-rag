@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: steam-rag
+Version: 0.1.0
+Summary: 한국어 스팀 리뷰 분석 + RAG 브리핑 플랫폼
+Requires-Python: >=3.13

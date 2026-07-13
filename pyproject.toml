@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════════
+# pyproject.toml — 프로젝트 메타데이터 + 도구(Ruff·mypy) 설정
+# TOML = 설정 파일 형식. [섹션] 아래에 key = value 로 값을 적는다.
+# ═══════════════════════════════════════════════════════════════
+
+# ── 빌드 시스템: 이 프로젝트를 "설치 가능한 패키지"로 만드는 방법 ──
+[build-system]
+requires = ["setuptools>=68"]        # 패키지를 빌드할 때 필요한 도구 (setuptools = 표준 빌드 백엔드)
+build-backend = "setuptools.build_meta"  # 실제 빌드를 수행하는 진입점
+
+# ── 프로젝트 메타데이터: 이름·버전 등 신원 정보 ──
+[project]
+name = "steam-rag"                   # 배포용 패키지 이름 (pip 목록에 뜨는 이름)
+version = "0.1.0"                    # 버전 (Slice 진행에 맞춰 올림)
+description = "한국어 스팀 리뷰 분석 + RAG 브리핑 플랫폼"
+requires-python = ">=3.13"           # 필요한 파이썬 버전 (3.13 이상)
+
+# ── setuptools에게 "소스가 src/ 아래에 있다"고 알려줌 (src 레이아웃) ──
+[tool.setuptools.packages.find]
+where = ["src"]                      # src 폴더 안에서 패키지를 찾아라 → steam_rag 를 인식
+
+# ═══════════════════════════════════════════════════════════════
+# Ruff — 린터 겸 포매터 설정
+# ═══════════════════════════════════════════════════════════════
+[tool.ruff]
+line-length = 200                    # 한 줄 최대 길이 (이보다 길면 경고/자동 줄바꿈)
+target-version = "py313"             # 파이썬 3.13 문법 기준으로 검사·포맷
+src = ["src"]                        # 소스 루트 (임포트 정렬 시 "우리 패키지"를 구분하는 기준)
+
+[tool.ruff.lint]
+# select : 어떤 검사 규칙을 켤지. 규칙은 알파벳 코드로 분류돼 있음.
+select = [
+  "E",   # pycodestyle 오류 (PEP 8 스타일 위반)
+  "F",   # Pyflakes (미사용 임포트·정의 안 된 변수 등 실제 버그성 문제)
+  "I",   # isort (임포트 정렬 — Black+isort를 Ruff가 대체하는 핵심)
+  "UP",  # pyupgrade (구식 문법을 최신 문법으로 제안)
+  "B",   # flake8-bugbear (흔한 실수·함정 패턴)
+]

@@ -1,0 +1,11 @@
+{
+    // 이 프로젝트에 권장하는 VSCode 확장 목록 (ARCHITECTURE §1 필수 확장)
+    // 이 폴더를 열면 VSCode가 "권장 확장을 설치하시겠어요?" 하고 안내함.
+    "recommendations": [
+        "ms-python.python", // 파이썬 기본 지원 (인터프리터·실행·디버그)
+        "charliermarsh.ruff", // Ruff 공식 확장 (린트·포맷)
+        "ms-python.mypy-type-checker", // mypy 타입 검사 통합
+        "ms-azuretools.vscode-docker", // Docker 지원 (컨테이너·compose 파일)
+        "redhat.vscode-yaml" // YAML 지원 (docker-compose.yml 등 편집)
+    ]
+}
