@@ -124,7 +124,7 @@ korean-steam-review-rag/
 > 이 섹션이 **세션 간 연속성의 기준(single source of truth)**입니다. 작업이 진행되면 여기를 갱신합니다.
 > 상태: ⬜ 예정 · 🟦 진행 중 · ✅ 완료
 
-**전체 진척: Slice 0 진행 중 — F0.2 완료 (Docker Compose · pgvector Postgres)**
+**전체 진척: Slice 0 진행 중 — F0.3 완료 (설정 로더 · Pydantic Settings)**
 
 | 슬라이스 | 이름 | 상태 |
 |---|---|---|
@@ -144,7 +144,7 @@ korean-steam-review-rag/
 |---|---|---|
 | F0.1 | 프로젝트 구조 + 패키징 | ✅ |
 | F0.2 | Docker Compose (Postgres) | ✅ |
-| F0.3 | 설정 로더 | ⬜ |
+| F0.3 | 설정 로더 | ✅ |
 | F0.4 | FastAPI 뼈대 + `/health` | ⬜ |
 | F0.5 | Invoke 태스크 + CI 뼈대 | ⬜ |
 
@@ -152,7 +152,9 @@ korean-steam-review-rag/
 
 > **F0.2 완료 내역**: `docker-compose.yml`(pgvector/pgvector:pg16 · named volume `pgdata` · `pg_isready` 헬스체크) + `docker-compose.override.yml`(로컬 전용 `5432` 포트 노출). 검증: `docker compose up -d` → `(healthy)`, `pg_available_extensions`에 `vector` 존재 확인. `.env`는 임시 최소본(POSTGRES_* · DB_PORT), F0.3에서 `.env.example`로 정식화 예정.
 
-**▶️ 다음 작업**: Slice 0 · F0.3 (설정 로더) — `src/steam_rag/config/settings.py`에 Pydantic Settings로 `.env` 로드, `.env.example` 작성.
+> **F0.3 완료 내역**: `src/steam_rag/config/settings.py` — Pydantic Settings(`BaseSettings`)로 `.env`·환경변수 로드. **nested 구조**(`DatabaseSettings`·`LLMSettings` 서브모델 + 평면 필드)에 `env_nested_delimiter="__"` 적용 → `DB__HOST`→`settings.db.host` 매핑. `extra="ignore"`로 compose 전용 변수(`POSTGRES_*`·`DB_PORT`)와 `.env` 한 파일 공유. 모듈 끝에서 `settings` 싱글턴 생성(앱 시작 시 검증). `.env.example`에 §6 교체 지점 9개 변수(compose용 홑밑줄 + 앱용 겹밑줄) 정리. 검증: nested 매핑·문자열→int 변환·기본값·잘못된 타입 시작 시 실패 확인, Ruff(E·F·I·UP·B)·mypy strict 통과. **주의**: nested라 §6 표의 `DB_HOST`는 실제 `.env`에서 `DB__HOST`(겹밑줄)로 씀.
+
+**▶️ 다음 작업**: Slice 0 · F0.4 (FastAPI 뼈대 + `/health`) — `src/steam_rag/serving/api/main.py`에 최소 FastAPI 앱과 `GET /health` 엔드포인트. `settings`(F0.3)를 주입해 앱 기동 시 설정 로드 확인.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
