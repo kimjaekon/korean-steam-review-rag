@@ -124,12 +124,12 @@ korean-steam-review-rag/
 > 이 섹션이 **세션 간 연속성의 기준(single source of truth)**입니다. 작업이 진행되면 여기를 갱신합니다.
 > 상태: ⬜ 예정 · 🟦 진행 중 · ✅ 완료
 
-**전체 진척: Slice 0 진행 중 — F0.4 완료 (FastAPI 뼈대 · GET /health)**
+**전체 진척: Slice 0 완료 — Slice 1(얇은 관통) 진행 예정**
 
 | 슬라이스 | 이름 | 상태 |
 |---|---|---|
-| 0 | 뼈대 (Skeleton) | 🟦 |
-| 1 | 얇은 관통 (Walking Skeleton) | ⬜ |
+| 0 | 뼈대 (Skeleton) | ✅ |
+| 1 | 얇은 관통 (Walking Skeleton) | 🟦 |
 | 2 | 저장 계층 정식화 | ⬜ |
 | 3 | 분석 파이프라인 | ⬜ |
 | 4 | AI/RAG (LangChain) | ⬜ |
@@ -146,7 +146,7 @@ korean-steam-review-rag/
 | F0.2 | Docker Compose (Postgres) | ✅ |
 | F0.3 | 설정 로더 | ✅ |
 | F0.4 | FastAPI 뼈대 + `/health` | ✅ |
-| F0.5 | Invoke 태스크 + CI 뼈대 | ⬜ |
+| F0.5 | Invoke 태스크 + CI 뼈대 | ✅ |
 
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
@@ -156,7 +156,9 @@ korean-steam-review-rag/
 
 > **F0.4 완료 내역**: `src/steam_rag/serving/api/main.py` — FastAPI `app` 인스턴스(모든 엔드포인트가 얹힐 뿌리 객체) + `GET /health`. 응답에 `settings.llm.provider`·`settings.agent_mode`를 실어 `.env`→`Settings`(F0.3)→앱까지 설정 관통을 검증. 라우터 분리(`APIRouter`)·`schemas.py`·`dependencies.py`는 엔드포인트가 늘어나는 Slice 1에서 도입(YAGNI). 검증: `uvicorn steam_rag.serving.api.main:app --reload` → `/health` JSON `{"status":"ok",...}` 응답, `/docs` 자동 문서에 `/health` 노출 확인.
 
-**▶️ 다음 작업**: Slice 0 · F0.5 (Invoke 태스크 + CI 뼈대) — `tasks.py`에 `up`·`test`·`lint` 태스크(Windows에 `make`가 없어 Invoke 사용), GitHub Actions 최소 워크플로(`actions/setup-python` + `pip install` + Ruff·mypy). F0.5를 끝내면 Slice 0(뼈대)이 닫히고 Slice 1(얇은 관통)로 넘어감.
+> **F0.5 완료 내역**: `tasks.py` — Invoke 태스크(`lint`·`fmt`·`typecheck`·`test`·`up`·`down` + pre-task로 묶은 `check`). Windows에 `make`가 없어 파이썬 기반 러너 사용. `c.run()`으로 실제 명령(ruff·mypy·docker compose) 위임 → **로컬과 CI가 같은 명령**을 호출. `.github/workflows/ci.yml` — push·main대상 PR 트리거, `actions/checkout@v4` + `actions/setup-python@v5`(3.13, pip 캐시) + `pip install -r requirements-dev.txt` + `pip install -e .` → `invoke lint`·`invoke typecheck`(테스트 스텝은 테스트 도입되는 Slice 8까지 보류). `pyproject.toml`에 `[tool.mypy]`(strict·`files=["src","tests"]`·`ignore_missing_imports`) 추가해 그간 CLI 인자에 의존하던 설정을 파일로 고정. `requirements-dev.txt`의 `invoke` 버전 핀(`2.*`). `tests/__init__.py` 추가로 빈 디렉터리 mypy 에러 방지. 검증: `invoke lint`·`typecheck`·`check` 통과, `ci.yml` YAML 파싱·트리거·스텝 확인. **주의**: Pydantic v2·FastAPI는 자체 타입 정보를 완비해 별도 mypy 플러그인 없이 strict 통과(단, 런타임 deps가 설치돼 있어야 함 — 미설치 시 라이브러리를 Any로 봐 오탐).
+
+**▶️ 다음 작업**: Slice 1 · F1.1 (도메인 모델 + 인터페이스) — `domain/models.py`에 `Review` 엔티티, `domain/interfaces.py`에 `ReviewCollector`·`ReviewRepository` 프로토콜. **프레임워크 import 0**(순수 도메인). Slice 1은 "리뷰 1개가 수집→저장→API 조회"로 관통되는 가장 중요한 슬라이스(★).
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
