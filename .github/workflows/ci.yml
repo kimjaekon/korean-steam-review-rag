@@ -1,0 +1,44 @@
+# ═══════════════════════════════════════════════════════════════
+# GitHub Actions CI — push/PR마다 자동으로 린트·타입 검사를 돌린다.
+# 이 파일은 GitHub 서버에서 실행됨 (내 PC 아님).
+# YAML = 들여쓰기로 계층을 표현하는 설정 형식 (탭 금지, 스페이스만).
+# ═══════════════════════════════════════════════════════════════
+
+name: CI # Actions 탭에 표시될 워크플로 이름
+
+# ── 언제 돌릴지 (트리거) ──
+on:
+  push:
+    branches: [main] # main에 push될 때
+  pull_request:
+    branches: [main] # main으로 향하는 PR이 열릴 때
+
+# ── 무엇을 돌릴지 ──
+jobs:
+  lint-and-typecheck: # job 이름 (자유롭게 지음)
+    runs-on: ubuntu-latest # GitHub이 빌려주는 리눅스 가상머신에서 실행
+
+    steps:
+      # 1) 저장소 코드를 러너로 가져옴 (공식 액션 사용)
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2) 파이썬 설치 (프로젝트가 요구하는 3.13)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip # pip 다운로드 캐시 → 다음 실행부터 빨라짐
+
+      # 3) 의존성 설치 (dev 목록엔 -r requirements.txt가 포함돼 있어 런타임+개발 전부 들어옴)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .     # steam_rag 를 설치해 import 경로 인식 (mypy가 우리 패키지를 찾게)
+
+      # 4) 검사 실행 — 로컬과 똑같이 invoke를 부른다 (tasks.py의 lint/typecheck)
+      - name: Lint
+        run: invoke lint
+      - name: Type check
+        run: invoke typecheck

@@ -36,3 +36,23 @@ select = [
   "UP",  # pyupgrade (구식 문법을 최신 문법으로 제안)
   "B",   # flake8-bugbear (흔한 실수·함정 패턴)
 ]
+
+# ═══════════════════════════════════════════════════════════════
+# mypy — 정적 타입 검사 설정
+# (지금까지 CLI 인자로 주던 걸 파일로 고정 → 로컬·CI·에디터가 같은 규칙 사용)
+# ═══════════════════════════════════════════════════════════════
+[tool.mypy]
+python_version = "3.13"       # 이 파이썬 버전 기준으로 타입을 해석
+strict = true                 # 엄격 모드 한 방 ON (여러 엄격 옵션을 묶어서 켬)
+files = ["src", "tests"]      # 검사 대상 (invoke typecheck 의 경로와 동일)
+
+# 서드파티 라이브러리에 타입 정보(stub)가 없을 때 나는 잡음을 끔.
+# import 자체는 확인하되, "타입 힌트 없음" 경고만 무시 → 우리 코드에 집중.
+ignore_missing_imports = true
+
+# tasks.py 는 Invoke 태스크 러너 스크립트(도메인 코드 아님) → strict 대상에서 제외.
+# Invoke의 @task/Context는 자체 타입 export가 불완전해 strict와 충돌하는데,
+# 러너에 억지 타입을 다는 건 과함(원칙 4). conftest.py 등을 빼는 것과 같은 관례.
+[[tool.mypy.overrides]]
+module = "tasks"
+ignore_errors = true
