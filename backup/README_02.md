@@ -124,7 +124,7 @@ korean-steam-review-rag/
 > 이 섹션이 **세션 간 연속성의 기준(single source of truth)**입니다. 작업이 진행되면 여기를 갱신합니다.
 > 상태: ⬜ 예정 · 🟦 진행 중 · ✅ 완료
 
-**전체 진척: Slice 0 진행 중 — F0.2 완료 (Docker Compose · pgvector Postgres)**
+**전체 진척: Slice 0 진행 중 — F0.1 완료 (프로젝트 구조 + 패키징)**
 
 | 슬라이스 | 이름 | 상태 |
 |---|---|---|
@@ -143,16 +143,14 @@ korean-steam-review-rag/
 | 기능 | 이름 | 상태 |
 |---|---|---|
 | F0.1 | 프로젝트 구조 + 패키징 | ✅ |
-| F0.2 | Docker Compose (Postgres) | ✅ |
+| F0.2 | Docker Compose (Postgres) | ⬜ |
 | F0.3 | 설정 로더 | ⬜ |
 | F0.4 | FastAPI 뼈대 + `/health` | ⬜ |
 | F0.5 | Invoke 태스크 + CI 뼈대 | ⬜ |
 
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
-> **F0.2 완료 내역**: `docker-compose.yml`(pgvector/pgvector:pg16 · named volume `pgdata` · `pg_isready` 헬스체크) + `docker-compose.override.yml`(로컬 전용 `5432` 포트 노출). 검증: `docker compose up -d` → `(healthy)`, `pg_available_extensions`에 `vector` 존재 확인. `.env`는 임시 최소본(POSTGRES_* · DB_PORT), F0.3에서 `.env.example`로 정식화 예정.
-
-**▶️ 다음 작업**: Slice 0 · F0.3 (설정 로더) — `src/steam_rag/config/settings.py`에 Pydantic Settings로 `.env` 로드, `.env.example` 작성.
+**▶️ 다음 작업**: Slice 0 · F0.2 (Docker Compose · Postgres) — pgvector 이미지로 `docker-compose.yml` + `docker-compose.override.yml` 작성.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
