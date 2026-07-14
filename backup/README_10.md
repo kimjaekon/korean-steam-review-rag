@@ -124,12 +124,12 @@ korean-steam-review-rag/
 > 이 섹션이 **세션 간 연속성의 기준(single source of truth)**입니다. 작업이 진행되면 여기를 갱신합니다.
 > 상태: ⬜ 예정 · 🟦 진행 중 · ✅ 완료
 
-**전체 진척: Slice 1(얇은 관통) 완료 ★ — Slice 2(저장 계층 정식화) 진행 예정**
+**전체 진척: Slice 0 완료 — Slice 1(얇은 관통) 진행 예정**
 
 | 슬라이스 | 이름 | 상태 |
 |---|---|---|
 | 0 | 뼈대 (Skeleton) | ✅ |
-| 1 | 얇은 관통 (Walking Skeleton) | ✅ |
+| 1 | 얇은 관통 (Walking Skeleton) | 🟦 |
 | 2 | 저장 계층 정식화 | ⬜ |
 | 3 | 분석 파이프라인 | ⬜ |
 | 4 | AI/RAG (LangChain) | ⬜ |
@@ -156,7 +156,7 @@ korean-steam-review-rag/
 | F1.2 | Steam 수집기 | ✅ |
 | F1.3 | 최소 정제 | ✅ |
 | F1.4 | Postgres 저장 (raw) | ✅ |
-| F1.5 | 조회 API | ✅ |
+| F1.5 | 조회 API | ⬜ |
 
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
@@ -176,9 +176,7 @@ korean-steam-review-rag/
 
 > **F1.4 완료 내역**: `storage/postgres/repository.py` — `PostgresReviewRepository`가 psycopg raw SQL로 `ReviewRepository` 프로토콜(F1.1) 구현. Alembic 도입 전이라 `CREATE TABLE IF NOT EXISTS`로 `reviews` 테이블을 저장소가 자족 보장(ERD 스키마 준수, `recommendation_id UNIQUE` — `ON CONFLICT`의 전제). **저장**: `cur.executemany(_INSERT, rows)` — psycopg 3의 `executemany`는 3.1부터 내부적으로 **파이프라인 모드**라 psycopg2의 `execute_values` 없이도 배치 전송이 빠름(원칙 4). `ON CONFLICT (recommendation_id) DO NOTHING`으로 멱등 저장, `cur.rowcount`로 실제 신규 INSERT 수 반환. **조회**: `cursor(row_factory=class_row(Review))`로 SELECT 행을 컬럼명↔dataclass 필드명 매칭해 `Review`로 자동 매핑(그래서 `SELECT *` 대신 컬럼 명시). **F1.3 경고 대응**: Pandas 왕복으로 `datetime→Timestamp`·`bool→numpy.bool_`가 된 값을 `to_pydatetime()`·`int()`·`bool()`로 표준형 캐스팅 후 INSERT. DSN은 `settings.db.url`의 `postgresql+psycopg://`(SQLAlchemy용)에서 `+psycopg`를 떼어 psycopg에 전달. 검증: `scripts/save_reviews.py 570 20`으로 저장·조회 확인, 재실행 시 `저장: 0개`(멱등) 확인, `invoke check` 통과. **주의**: 자리표시자는 f-string이 아니라 psycopg의 `%(name)s` 바인딩(인젝션 방지) — 값은 항상 두 번째 인자로. **부채**: 커넥션을 매 호출 새로 열어(풀 없음) 소규모엔 무해하나 Slice 2에서 SQLAlchemy 세션·`ON CONFLICT`를 정식화하며 해소.
 
-> **F1.5 완료 내역**: `serving/schemas.py` — `ReviewOut(BaseModel)`로 도메인 `Review`(F1.1)를 외부 JSON 계약으로 분리(계층 격리·원칙 2). `model_config=ConfigDict(from_attributes=True)`로 dict가 아닌 **속성 접근**을 켜 `Review` dataclass에서 필드를 읽어옴(Pydantic v1 `orm_mode`의 v2 대응). 필드는 `Review`와 동명이나 역할이 다름 — 내부 표현 ≠ 외부 계약이라 향후 응답 전용 필드(감성 라벨 등) 추가나 개인정보 제외 시 도메인을 건드리지 않고 여기서만 변경. `serving/api/main.py` — `GET /reviews/{appid}` 추가: 경로 파라미터 `appid: int`(FastAPI가 자동 형변환·검증→실패 시 422), 기본값 인자 `limit: int = 20`은 **쿼리 파라미터**로 해석(경로에 없으므로), 반환 타입 `list[ReviewOut]`이 곧 응답 스키마 선언(`/docs` 자동 문서화). `PostgreReviewRepository.get_by_appid`(F1.4) 호출 후 `[ReviewOut.model_validate(r) for r in reviews]`로 도메인→응답 변환. `scripts/check_api.py` — `httpx.get(params=...)`로 실행 중 서버에 요청, `raise_for_status()`로 조용한 실패 차단. 검증: `uvicorn ...` 기동 후 `python scripts/check_api.py 570 5`로 조회, `/docs`에 스키마와 함께 `/reviews/{appid}` 노출, `invoke check` 통과. **주의**: `schemas.py`는 `Review`를 **import 하지 않음** — `from_attributes`는 런타임 속성 접근(덕 타이핑)이라 타입 참조 불필요, 미사용 import는 Ruff `F401`로 걸림. **부채**: 저장소를 요청마다 새로 생성(F1.4 커넥션 부채 상속) — F4.6 `dependencies.py` 의존성 주입 + Slice 2 SQLAlchemy 세션에서 해소.
-
-**▶️ 다음 작업**: Slice 2 · F2.1 (SQLAlchemy ORM) — `storage/postgres/models.py`에 `ReviewORM`(`DeclarativeBase` 상속) 정의, `storage/postgres/session.py`에 `SessionLocal`(엔진·세션 팩토리) 구성. F1.4의 psycopg raw SQL 저장소를 ORM 기반으로 옮길 토대를 놓는다(교체는 F2.3). ERD `reviews` 테이블 스키마(§테이블 상세)를 ORM 컬럼으로 1:1 매핑.
+**▶️ 다음 작업**: Slice 1 · F1.5 (조회 API) — `serving/api/main.py`에 `GET /reviews/{appid}` 추가, `serving/schemas.py`에 `ReviewOut`(Pydantic 응답 모델) 정의. `PostgresReviewRepository.get_by_appid`(F1.4)를 호출해 JSON 반환. 이걸로 Slice 1 "리뷰 1개가 수집돼 API로 나온다" 관통이 완성된다.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
