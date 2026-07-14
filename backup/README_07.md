@@ -153,10 +153,12 @@ korean-steam-review-rag/
 | 기능 | 이름 | 상태 |
 |---|---|---|
 | F1.1 | 도메인 모델 + 인터페이스 | ✅ |
-| F1.2 | Steam 수집기 | ✅ |
+| F1.2 | Steam 수집기 | ⬜ |
 | F1.3 | 최소 정제 | ⬜ |
 | F1.4 | Postgres 저장 (raw) | ⬜ |
 | F1.5 | 조회 API | ⬜ |
+
+> **F1.1 완료 내역**: `domain/models.py` — `Review` 엔티티를 표준 라이브러리 `@dataclass(frozen=True, slots=True)`로 정의(불변 값 객체·메모리 절약·오타 속성 차단). **프레임워크 import 0**(Pydantic조차 안 씀 — 도메인은 순수 파이썬, 검증은 경계인 `schemas.py`/`settings.py`가 담당). DB 자동증가 `id`는 도메인에서 제외하고 Steam `recommendation_id`(자연 키)만 보유 → 도메인 엔티티 ≠ DB 행(계층 격리). `domain/interfaces.py` — `ReviewCollector`·`ReviewRepository`를 `abc.ABC`가 아닌 `typing.Protocol`(+`@runtime_checkable`)로 정의: **구조적 서브타이핑**이라 구현체가 도메인을 상속·import 하지 않아도 mypy가 계약 만족을 정적 검증 → 의존 방향 완전 차단(원칙 1·2). 반환 타입은 최소 능력만 요구(`collect`→`Iterable`로 제너레이터 허용, `get_by_appid`→`Sequence`로 `len()`·인덱싱 허용). 검증: import·Ruff(E·F·I·UP·B)·mypy strict 통과, 상속 없는 `InMemoryRepo`가 `ReviewRepository`로 인정되고 멱등 저장(중복 `recommendation_id` 무시)·`frozen` 변경 차단 동작 확인. **주의**: `frozen=True`+`slots=True` 조합에선 필드 변경 시 `AttributeError`가 아니라 `FrozenInstanceError`가 먼저 발생.
 
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
@@ -168,11 +170,7 @@ korean-steam-review-rag/
 
 > **F0.5 완료 내역**: `tasks.py` — Invoke 태스크(`lint`·`fmt`·`typecheck`·`test`·`up`·`down` + pre-task로 묶은 `check`). Windows에 `make`가 없어 파이썬 기반 러너 사용. `c.run()`으로 실제 명령(ruff·mypy·docker compose) 위임 → **로컬과 CI가 같은 명령**을 호출. `.github/workflows/ci.yml` — push·main대상 PR 트리거, `actions/checkout@v4` + `actions/setup-python@v5`(3.13, pip 캐시) + `pip install -r requirements-dev.txt` + `pip install -e .` → `invoke lint`·`invoke typecheck`(테스트 스텝은 테스트 도입되는 Slice 8까지 보류). `pyproject.toml`에 `[tool.mypy]`(strict·`files=["src","tests"]`·`ignore_missing_imports`) 추가해 그간 CLI 인자에 의존하던 설정을 파일로 고정. `requirements-dev.txt`의 `invoke` 버전 핀(`2.*`). `tests/__init__.py` 추가로 빈 디렉터리 mypy 에러 방지. 검증: `invoke lint`·`typecheck`·`check` 통과, `ci.yml` YAML 파싱·트리거·스텝 확인. **주의**: Pydantic v2·FastAPI는 자체 타입 정보를 완비해 별도 mypy 플러그인 없이 strict 통과(단, 런타임 deps가 설치돼 있어야 함 — 미설치 시 라이브러리를 Any로 봐 오탐).
 
-> **F1.1 완료 내역**: `domain/models.py` — `Review` 엔티티를 표준 라이브러리 `@dataclass(frozen=True, slots=True)`로 정의(불변 값 객체·메모리 절약·오타 속성 차단). **프레임워크 import 0**(Pydantic조차 안 씀 — 도메인은 순수 파이썬, 검증은 경계인 `schemas.py`/`settings.py`가 담당). DB 자동증가 `id`는 도메인에서 제외하고 Steam `recommendation_id`(자연 키)만 보유 → 도메인 엔티티 ≠ DB 행(계층 격리). `domain/interfaces.py` — `ReviewCollector`·`ReviewRepository`를 `abc.ABC`가 아닌 `typing.Protocol`(+`@runtime_checkable`)로 정의: **구조적 서브타이핑**이라 구현체가 도메인을 상속·import 하지 않아도 mypy가 계약 만족을 정적 검증 → 의존 방향 완전 차단(원칙 1·2). 반환 타입은 최소 능력만 요구(`collect`→`Iterable`로 제너레이터 허용, `get_by_appid`→`Sequence`로 `len()`·인덱싱 허용). 검증: import·Ruff(E·F·I·UP·B)·mypy strict 통과, 상속 없는 `InMemoryRepo`가 `ReviewRepository`로 인정되고 멱등 저장(중복 `recommendation_id` 무시)·`frozen` 변경 차단 동작 확인. **주의**: `frozen=True`+`slots=True` 조합에선 필드 변경 시 `AttributeError`가 아니라 `FrozenInstanceError`가 먼저 발생.
-
-> **F1.2 완료 내역**: `ingestion/collectors/steam.py` — `SteamReviewCollector`가 `httpx.Client`(연결 풀 재사용)로 공개 appreviews 엔드포인트 호출. 커서 페이지네이션은 `params` dict에 커서를 넣어 httpx가 `=`·`+`를 URL 인코딩하게 위임하고, 종료 조건 3개(`success!=1`/빈 배열, `limit` 도달, 커서 불변)로 무한루프 차단. `raise_for_status()`로 4xx·5xx를 예외화(조용한 실패 방지), `response.json()`으로 파싱. 반환은 `Iterator[Review]` 제너레이터라 `limit` 도달 시 즉시 중단해 불필요한 페이지 호출을 아낌. 필드 매핑 주의: `playtime_at_review`·`steamid`는 `author` 중첩에서 꺼내고, `appid`는 응답에 없어 인자 값 사용, `timestamp_created`(Unix초)는 `datetime.fromtimestamp(tz=UTC)`로 tz 인식 변환(ERD `timestamptz` 대응). 언어는 하드코딩 없이 `settings.steam_language`(§6 교체 지점)에서 주입. 검증: `scripts/collect_reviews.py 570 5`로 5개 수집 확인, 상속 없는 `SteamReviewCollector`가 `ReviewCollector`로 `isinstance` 인정, `invoke check` 통과.
-
-**▶️ 다음 작업**: Slice 1 · F1.3 (최소 정제) — `etl/transform.py`. Pandas로 수집된 `Review` 목록에서 빈 리뷰(content 공백)·중복(`recommendation_id`) 제거. 수집기 출력(`Iterable[Review]`)을 받아 정제된 `list[Review]` 반환.
+**▶️ 다음 작업**: Slice 1 · F1.2 (Steam 수집기) — `ingestion/collectors/steam.py`. `httpx`로 공개 엔드포인트(`store.steampowered.com/appreviews/<appid>?json=1&language=koreana&num_per_page=100&cursor=*`) 호출, 응답 `cursor`로 페이지네이션, 원본 dict → `Review`(F1.1) 변환. 반환은 `Iterable[Review]`(제너레이터). API 키 불필요. `@runtime_checkable`로 `ReviewCollector` 계약 만족을 검증.
 
 
 
