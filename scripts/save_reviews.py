@@ -21,7 +21,7 @@ def main() -> None:
 
     cleaned = clean_reviews(raw)
 
-    repo = PostgresReviewRepository(dsn=settings.db.url)
+    repo = PostgresReviewRepository()
     inserted = repo.save_many(cleaned)
 
     fetched = repo.get_by_appid(appid=appid, limit=5)

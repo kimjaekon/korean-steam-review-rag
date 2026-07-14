@@ -16,6 +16,6 @@ def health() -> dict[str, object]:
 
 @app.get("/reviews/{appid}")
 def get_reviews(appid: int, limit: int = 20) -> list[ReviewOut]:
-    repo = PostgresReviewRepository(dsn=settings.db.url)
+    repo = PostgresReviewRepository()
     reviews = repo.get_by_appid(appid=appid, limit=limit)
     return [ReviewOut.model_validate(review) for review in reviews]
