@@ -162,8 +162,8 @@ korean-steam-review-rag/
 
 | 기능 | 이름 | 상태 |
 |---|---|---|
-| F2.1 | SQLAlchemy ORM | ✅ |
-| F2.2 | Alembic 마이그레이션 | ✅ |
+| F2.1 | SQLAlchemy ORM | 🟦 |
+| F2.2 | Alembic 마이그레이션 | ⬜ |
 | F2.3 | Repository 패턴 | ⬜ |
 | F2.4 | Redis 캐시 | ⬜ |
 
@@ -189,9 +189,7 @@ korean-steam-review-rag/
 
 > **F2.1 완료 내역**: SQLAlchemy 2.0 ORM 토대 2파일. `storage/postgres/models.py` — `DeclarativeBase` 상속 `Base` + `ReviewORM`(`__tablename__="reviews"`). 컬럼은 `Mapped[T]`(파이썬 타입 힌트=mypy용) + `mapped_column(...)`(DB 제약·SQL타입) 조합의 2.0 스타일. 64비트 필요한 `id`·`recommendation_id`·`appid`는 `BigInteger` 명시(`int` 기본은 `Integer`), `content`는 길이 없는 `String`→`TEXT`, `created_at`/`collected_at`은 `DateTime(timezone=True)`→`TIMESTAMPTZ`(F1.2 tz 인식 값과 짝). `recommendation_id`만 `unique=True`(FK 대상), `appid`는 `index=True`. **`ReviewORM`≠도메인 `Review`**(F1.1) — ORM엔 DB `id` 있고 프레임워크 의존, 도메인은 순수 dataclass(계층 격리·원칙 2). `storage/postgres/session.py` — `create_engine(settings.db.url, pool_pre_ping=True)`로 커넥션 풀 품은 엔진 1개(모듈 로드 시 1회). `settings.db.url`의 `+psycopg` 접미사를 SQLAlchemy가 읽어 psycopg3 드라이버 선택(F1.4 raw 저장소는 반대로 이 접미사를 뗐음). `sessionmaker(bind=engine, expire_on_commit=False)`로 세션 팩토리 — `False`라 commit 후에도 속성 접근 가능(직렬화 편의). **토대만**: 아직 `repository.py`·API가 import 안 함 → 앱 동작 F1.5와 동일(원칙 3). 배선은 F2.2(Alembic이 `Base.metadata` 읽음)·F2.3(저장소가 `SessionLocal` 사용)에서. 검증: `Base.metadata.tables`에 `reviews` 존재, `CreateTable(ReviewORM.__table__)` DDL이 ERD와 일치, `SELECT 1` 커넥션 확인, `invoke check` 통과. **주의**: `pool_pre_ping`으로 죽은 커넥션(유휴 타임아웃·DB 재시작) 재사용 방지 — F1.4 매 호출 새 커넥션 부채의 해소 토대(실사용은 F2.3).
 
-> **F2.2 완료 내역**: `alembic init alembic`으로 `alembic.ini` + `alembic/`(env.py·script.py.mako·versions) 스캐폴딩. **비밀번호 비노출**: `alembic.ini`의 `sqlalchemy.url`을 빈칸으로 두고 `env.py`에서 `config.set_main_option("sqlalchemy.url", settings.db.url)`로 런타임 주입(F0.3 `.env` 로더 공유 → 로컬↔RDS 교체가 `DB__HOST` 하나로, 원칙 1). `target_metadata = Base.metadata`(F2.1)로 배선해 `--autogenerate`가 `ReviewORM`을 정답 스키마로 diff — 첫 리비전 `create reviews table`을 손 DDL 없이 생성(원칙 4). ERD 대조: `BigInteger`·`DateTime(timezone=True)`·`appid` 인덱스·`recommendation_id` UNIQUE 확인. 검증: `alembic upgrade head` → `\d reviews`로 스키마 확인, `downgrade -1`↔`upgrade head` 왕복으로 가역성 확인, `alembic current`가 head 표시, `invoke check` 통과. `requirements.txt`에 `alembic==1.14.*` 핀. **부채 해소 토대**: F1.4의 임시 `CREATE TABLE`을 F2.3에서 제거(스키마 소유권을 Alembic으로 이관). **다음 토대**: pgvector 확장·`vector(768)`·HNSW 인덱스는 autogenerate가 못 잡아 Slice 4에서 `op.execute()`로 명시 삽입.
-
-> **▶️ 다음 작업**: Slice 2 · F2.3 (Repository 패턴) — `storage/postgres/repository.py`의 `PostgresReviewRepository`를 raw psycopg에서 **SQLAlchemy 세션**(`SessionLocal`, F2.1) 기반으로 리팩터. F1.4의 임시 `_CREATE_TABLE` DDL 제거(스키마는 이제 Alembic 소유). 저장은 `ReviewORM`으로 매핑 후 `session.add_all` + `ON CONFLICT DO NOTHING`(pg dialect `insert().on_conflict_do_nothing`), 조회는 `select(ReviewORM)`. `domain/interfaces.py`의 `ReviewRepository` 프로토콜 뒤에 그대로 숨어 API·schemas는 무변경(원칙 1·2·3).
+**▶️ 다음 작업**: Slice 2 · F2.2 (Alembic 마이그레이션) — `alembic init`으로 `alembic/` 구성 후 `env.py`가 `models.Base`(F2.1)의 `metadata`를 `target_metadata`로 바라보게 배선, `settings.db.url`을 DSN으로 주입. 첫 마이그레이션을 `--autogenerate`로 생성해 `reviews` 테이블 DDL을 코드로 남긴다. 이후 pgvector 확장·`vector(768)`·HNSW 인덱스는 `op.execute()`로 명시 삽입(Slice 4). `repository.py`의 임시 `_CREATE_TABLE` DDL은 F2.3에서 제거.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
