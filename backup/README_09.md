@@ -155,7 +155,7 @@ korean-steam-review-rag/
 | F1.1 | 도메인 모델 + 인터페이스 | ✅ |
 | F1.2 | Steam 수집기 | ✅ |
 | F1.3 | 최소 정제 | ✅ |
-| F1.4 | Postgres 저장 (raw) | ✅ |
+| F1.4 | Postgres 저장 (raw) | ⬜ |
 | F1.5 | 조회 API | ⬜ |
 
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
@@ -174,9 +174,7 @@ korean-steam-review-rag/
 
 > **F1.3 완료 내역**: `etl/transform.py` — `clean_reviews(Iterable[Review]) -> list[Review]`가 Pandas로 빈 content·중복 `recommendation_id` 제거. **왕복 패턴**: `asdict`로 dataclass(`slots=True`라 `vars()` 불가) → dict 리스트 → `DataFrame` → 정제 → `to_dict(orient="records")` → `Review(**row)` 복원 (도메인 엔티티는 Pandas를 모름 — 계층 격리). 정제 3종: `.str.strip().str.len()>0` 불리언 마스킹으로 빈 리뷰 제거, `drop_duplicates(subset="recommendation_id", keep="first")`로 중복 제거(커서 페이지 경계 재출현 대비, 앞 페이지 우선). 손구현 대신 Pandas API 사용법 습득이 목적(원칙 4) — Slice 3 사분위·집계의 뼈대. `requirements.txt`에 `pandas==2.*` 추가. 검증: `scripts/clean_reviews.py 570 100`으로 before/after 카운트, 인위적 입력(빈 1·중복 1)에서 1개만 남음 확인, `invoke check` 통과. **주의**: Pandas가 `datetime`→`Timestamp`, `bool`→`numpy.bool_`로 바꿔 F1.4 psycopg INSERT 시 어댑터가 필요할 수 있음(그때 대응).
 
-> **F1.4 완료 내역**: `storage/postgres/repository.py` — `PostgresReviewRepository`가 psycopg raw SQL로 `ReviewRepository` 프로토콜(F1.1) 구현. Alembic 도입 전이라 `CREATE TABLE IF NOT EXISTS`로 `reviews` 테이블을 저장소가 자족 보장(ERD 스키마 준수, `recommendation_id UNIQUE` — `ON CONFLICT`의 전제). **저장**: `cur.executemany(_INSERT, rows)` — psycopg 3의 `executemany`는 3.1부터 내부적으로 **파이프라인 모드**라 psycopg2의 `execute_values` 없이도 배치 전송이 빠름(원칙 4). `ON CONFLICT (recommendation_id) DO NOTHING`으로 멱등 저장, `cur.rowcount`로 실제 신규 INSERT 수 반환. **조회**: `cursor(row_factory=class_row(Review))`로 SELECT 행을 컬럼명↔dataclass 필드명 매칭해 `Review`로 자동 매핑(그래서 `SELECT *` 대신 컬럼 명시). **F1.3 경고 대응**: Pandas 왕복으로 `datetime→Timestamp`·`bool→numpy.bool_`가 된 값을 `to_pydatetime()`·`int()`·`bool()`로 표준형 캐스팅 후 INSERT. DSN은 `settings.db.url`의 `postgresql+psycopg://`(SQLAlchemy용)에서 `+psycopg`를 떼어 psycopg에 전달. 검증: `scripts/save_reviews.py 570 20`으로 저장·조회 확인, 재실행 시 `저장: 0개`(멱등) 확인, `invoke check` 통과. **주의**: 자리표시자는 f-string이 아니라 psycopg의 `%(name)s` 바인딩(인젝션 방지) — 값은 항상 두 번째 인자로. **부채**: 커넥션을 매 호출 새로 열어(풀 없음) 소규모엔 무해하나 Slice 2에서 SQLAlchemy 세션·`ON CONFLICT`를 정식화하며 해소.
-
-**▶️ 다음 작업**: Slice 1 · F1.5 (조회 API) — `serving/api/main.py`에 `GET /reviews/{appid}` 추가, `serving/schemas.py`에 `ReviewOut`(Pydantic 응답 모델) 정의. `PostgresReviewRepository.get_by_appid`(F1.4)를 호출해 JSON 반환. 이걸로 Slice 1 "리뷰 1개가 수집돼 API로 나온다" 관통이 완성된다.
+**▶️ 다음 작업**: Slice 1 · F1.4 (Postgres 저장 raw) — `storage/postgres/repository.py` 초판. psycopg raw SQL로 정제된 `Review` 목록을 `reviews` 테이블에 INSERT(중복 `recommendation_id`는 `ON CONFLICT DO NOTHING`)하고 `get_by_appid`로 조회. `ReviewRepository` 프로토콜(F1.1) 구현. Slice 2에서 SQLAlchemy로 정식화 예정.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
