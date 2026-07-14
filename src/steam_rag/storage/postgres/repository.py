@@ -49,7 +49,7 @@ LIMIT %s
 """
 
 
-class PostgreReviewRepository:
+class PostgresReviewRepository:
     """ReviewRepository 프로토콜 구현"""
 
     def __init__(self, dsn: str) -> None:  # dsn : Data Source Name

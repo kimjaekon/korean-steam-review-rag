@@ -5,7 +5,7 @@ import sys
 from steam_rag.config.settings import settings
 from steam_rag.etl.transform import clean_reviews
 from steam_rag.ingestion.collectors.steam import SteamReviewCollector
-from steam_rag.storage.postgres.repository import PostgreReviewRepository
+from steam_rag.storage.postgres.repository import PostgresReviewRepository
 
 
 def main() -> None:
@@ -21,7 +21,7 @@ def main() -> None:
 
     cleaned = clean_reviews(raw)
 
-    repo = PostgreReviewRepository(dsn=settings.db.url)
+    repo = PostgresReviewRepository(dsn=settings.db.url)
     inserted = repo.save_many(cleaned)
 
     fetched = repo.get_by_appid(appid=appid, limit=5)
