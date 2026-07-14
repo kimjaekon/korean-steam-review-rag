@@ -164,7 +164,7 @@ korean-steam-review-rag/
 |---|---|---|
 | F2.1 | SQLAlchemy ORM | ✅ |
 | F2.2 | Alembic 마이그레이션 | ✅ |
-| F2.3 | Repository 패턴 | ✅ |
+| F2.3 | Repository 패턴 | ⬜ |
 | F2.4 | Redis 캐시 | ⬜ |
 
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
@@ -191,9 +191,7 @@ korean-steam-review-rag/
 
 > **F2.2 완료 내역**: `alembic init alembic`으로 `alembic.ini` + `alembic/`(env.py·script.py.mako·versions) 스캐폴딩. **비밀번호 비노출**: `alembic.ini`의 `sqlalchemy.url`을 빈칸으로 두고 `env.py`에서 `config.set_main_option("sqlalchemy.url", settings.db.url)`로 런타임 주입(F0.3 `.env` 로더 공유 → 로컬↔RDS 교체가 `DB__HOST` 하나로, 원칙 1). `target_metadata = Base.metadata`(F2.1)로 배선해 `--autogenerate`가 `ReviewORM`을 정답 스키마로 diff — 첫 리비전 `create reviews table`을 손 DDL 없이 생성(원칙 4). ERD 대조: `BigInteger`·`DateTime(timezone=True)`·`appid` 인덱스·`recommendation_id` UNIQUE 확인. 검증: `alembic upgrade head` → `\d reviews`로 스키마 확인, `downgrade -1`↔`upgrade head` 왕복으로 가역성 확인, `alembic current`가 head 표시, `invoke check` 통과. `requirements.txt`에 `alembic==1.14.*` 핀. **부채 해소 토대**: F1.4의 임시 `CREATE TABLE`을 F2.3에서 제거(스키마 소유권을 Alembic으로 이관). **다음 토대**: pgvector 확장·`vector(768)`·HNSW 인덱스는 autogenerate가 못 잡아 Slice 4에서 `op.execute()`로 명시 삽입.
 
-> **F2.3 완료 내역**: `storage/postgres/repository.py` — `PostgresReviewRepository`를 raw psycopg에서 **SQLAlchemy 세션**(`SessionLocal`, F2.1)으로 전면 리팩터. **커넥션 풀 배선**: F1.4가 매 호출 `psycopg.connect()`로 새 커넥션을 열던 부채를, `SessionLocal`이 엔진(F2.1, `pool_pre_ping`)의 풀에서 빌려/반납하도록 해소. 쓰기는 `with SessionLocal.begin()`(정상 종료 시 자동 commit·예외 시 rollback), 읽기는 `with SessionLocal()`(commit 불필요). **UPSERT 위임**: 손 SQL `ON CONFLICT ... DO NOTHING`을 `sqlalchemy.dialects.postgresql.insert`(일반 `insert`엔 없는 pg 전용 메서드)의 `.on_conflict_do_nothing(index_elements=["recommendation_id"])`로 대체(원칙 4) — F2.1 ORM의 `unique=True`가 전제. **스키마 소유권 이관**: F1.4 임시 `_CREATE_TABLE`·`__init__`·`_ensure_schema` 삭제 → 스키마는 이제 Alembic(F2.2)만 소유(`upgrade head` 선행 필수, 안 하면 `relation "reviews" does not exist` — 이관의 증거). **조회**는 `select(ReviewORM).where(...).order_by(...).limit(...)` 2.0 스타일 + `session.scalars(stmt).all()`로 ORM 객체 추출. **계층 격리**: `session`이 돌려준 `ReviewORM`을 `_to_domain`으로 순수 `Review`(DB `id` 버림)로 변환해 내보내 API·`schemas.py`를 **무변경**으로 유지(원칙 1·2·3 실증) — `main.py`는 저장소 생성 시 `dsn` 인자만 제거(더 이상 안 받음). F1.4 `_as_datetime` 수동 변환은 SQLAlchemy 타입 어댑터에 위임하며 삭제. 검증: `alembic upgrade head` 후 `scripts/save_reviews.py 570 20`으로 저장·조회, 재실행 시 `저장: 0개`(멱등), `scripts/check_api.py`가 F1.5와 동일 응답(API 무변경 확인), `invoke check` 통과. **부채**: 저장소를 요청마다 새로 생성(F1.5 상속) — F4.6 `dependencies.py` 의존성 주입에서 해소.
-
-> **▶️ 다음 작업**: Slice 2 · F2.4 (Redis 캐시) — `storage/cache.py`(`RedisCache`)와 `storage/caching_repository.py`(`CachingReviewRepository` 데코레이터: `ReviewRepository`를 감싸 `get_by_appid` 결과를 캐싱). `PostgresReviewRepository`를 그대로 두고 같은 프로토콜을 구현하는 래퍼로 조합(데코레이터 패턴). `docker-compose.yml`에 Redis 서비스 추가.
+> **▶️ 다음 작업**: Slice 2 · F2.3 (Repository 패턴) — `storage/postgres/repository.py`의 `PostgresReviewRepository`를 raw psycopg에서 **SQLAlchemy 세션**(`SessionLocal`, F2.1) 기반으로 리팩터. F1.4의 임시 `_CREATE_TABLE` DDL 제거(스키마는 이제 Alembic 소유). 저장은 `ReviewORM`으로 매핑 후 `session.add_all` + `ON CONFLICT DO NOTHING`(pg dialect `insert().on_conflict_do_nothing`), 조회는 `select(ReviewORM)`. `domain/interfaces.py`의 `ReviewRepository` 프로토콜 뒤에 그대로 숨어 API·schemas는 무변경(원칙 1·2·3).
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
