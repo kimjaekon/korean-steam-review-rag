@@ -154,7 +154,7 @@ korean-steam-review-rag/
 |---|---|---|
 | F1.1 | 도메인 모델 + 인터페이스 | ✅ |
 | F1.2 | Steam 수집기 | ✅ |
-| F1.3 | 최소 정제 | ✅ |
+| F1.3 | 최소 정제 | ⬜ |
 | F1.4 | Postgres 저장 (raw) | ⬜ |
 | F1.5 | 조회 API | ⬜ |
 
@@ -172,9 +172,9 @@ korean-steam-review-rag/
 
 > **F1.2 완료 내역**: `ingestion/collectors/steam.py` — `SteamReviewCollector`가 `httpx.Client`(연결 풀 재사용)로 공개 appreviews 엔드포인트 호출. 커서 페이지네이션은 `params` dict에 커서를 넣어 httpx가 `=`·`+`를 URL 인코딩하게 위임하고, 종료 조건 3개(`success!=1`/빈 배열, `limit` 도달, 커서 불변)로 무한루프 차단. `raise_for_status()`로 4xx·5xx를 예외화(조용한 실패 방지), `response.json()`으로 파싱. 반환은 `Iterator[Review]` 제너레이터라 `limit` 도달 시 즉시 중단해 불필요한 페이지 호출을 아낌. 필드 매핑 주의: `playtime_at_review`·`steamid`는 `author` 중첩에서 꺼내고, `appid`는 응답에 없어 인자 값 사용, `timestamp_created`(Unix초)는 `datetime.fromtimestamp(tz=UTC)`로 tz 인식 변환(ERD `timestamptz` 대응). 언어는 하드코딩 없이 `settings.steam_language`(§6 교체 지점)에서 주입. 검증: `scripts/collect_reviews.py 570 5`로 5개 수집 확인, 상속 없는 `SteamReviewCollector`가 `ReviewCollector`로 `isinstance` 인정, `invoke check` 통과.
 
-> **F1.3 완료 내역**: `etl/transform.py` — `clean_reviews(Iterable[Review]) -> list[Review]`가 Pandas로 빈 content·중복 `recommendation_id` 제거. **왕복 패턴**: `asdict`로 dataclass(`slots=True`라 `vars()` 불가) → dict 리스트 → `DataFrame` → 정제 → `to_dict(orient="records")` → `Review(**row)` 복원 (도메인 엔티티는 Pandas를 모름 — 계층 격리). 정제 3종: `.str.strip().str.len()>0` 불리언 마스킹으로 빈 리뷰 제거, `drop_duplicates(subset="recommendation_id", keep="first")`로 중복 제거(커서 페이지 경계 재출현 대비, 앞 페이지 우선). 손구현 대신 Pandas API 사용법 습득이 목적(원칙 4) — Slice 3 사분위·집계의 뼈대. `requirements.txt`에 `pandas==2.*` 추가. 검증: `scripts/clean_reviews.py 570 100`으로 before/after 카운트, 인위적 입력(빈 1·중복 1)에서 1개만 남음 확인, `invoke check` 통과. **주의**: Pandas가 `datetime`→`Timestamp`, `bool`→`numpy.bool_`로 바꿔 F1.4 psycopg INSERT 시 어댑터가 필요할 수 있음(그때 대응).
+**▶️ 다음 작업**: Slice 1 · F1.3 (최소 정제) — `etl/transform.py`. Pandas로 수집된 `Review` 목록에서 빈 리뷰(content 공백)·중복(`recommendation_id`) 제거. 수집기 출력(`Iterable[Review]`)을 받아 정제된 `list[Review]` 반환.
 
-**▶️ 다음 작업**: Slice 1 · F1.4 (Postgres 저장 raw) — `storage/postgres/repository.py` 초판. psycopg raw SQL로 정제된 `Review` 목록을 `reviews` 테이블에 INSERT(중복 `recommendation_id`는 `ON CONFLICT DO NOTHING`)하고 `get_by_appid`로 조회. `ReviewRepository` 프로토콜(F1.1) 구현. Slice 2에서 SQLAlchemy로 정식화 예정.
+
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
