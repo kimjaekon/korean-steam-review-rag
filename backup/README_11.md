@@ -130,7 +130,7 @@ korean-steam-review-rag/
 |---|---|---|
 | 0 | 뼈대 (Skeleton) | ✅ |
 | 1 | 얇은 관통 (Walking Skeleton) | ✅ |
-| 2 | 저장 계층 정식화 | 🟦 |
+| 2 | 저장 계층 정식화 | ⬜ |
 | 3 | 분석 파이프라인 | ⬜ |
 | 4 | AI/RAG (LangChain) | ⬜ |
 | 5 | LangGraph 에이전트 | ⬜ |
@@ -158,15 +158,6 @@ korean-steam-review-rag/
 | F1.4 | Postgres 저장 (raw) | ✅ |
 | F1.5 | 조회 API | ✅ |
 
-**Slice 2 기능 진행**
-
-| 기능 | 이름 | 상태 |
-|---|---|---|
-| F2.1 | SQLAlchemy ORM | 🟦 |
-| F2.2 | Alembic 마이그레이션 | ⬜ |
-| F2.3 | Repository 패턴 | ⬜ |
-| F2.4 | Redis 캐시 | ⬜ |
-
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
 > **F0.2 완료 내역**: `docker-compose.yml`(pgvector/pgvector:pg16 · named volume `pgdata` · `pg_isready` 헬스체크) + `docker-compose.override.yml`(로컬 전용 `5432` 포트 노출). 검증: `docker compose up -d` → `(healthy)`, `pg_available_extensions`에 `vector` 존재 확인. `.env`는 임시 최소본(POSTGRES_* · DB_PORT), F0.3에서 `.env.example`로 정식화 예정.
@@ -187,9 +178,7 @@ korean-steam-review-rag/
 
 > **F1.5 완료 내역**: `serving/schemas.py` — `ReviewOut(BaseModel)`로 도메인 `Review`(F1.1)를 외부 JSON 계약으로 분리(계층 격리·원칙 2). `model_config=ConfigDict(from_attributes=True)`로 dict가 아닌 **속성 접근**을 켜 `Review` dataclass에서 필드를 읽어옴(Pydantic v1 `orm_mode`의 v2 대응). 필드는 `Review`와 동명이나 역할이 다름 — 내부 표현 ≠ 외부 계약이라 향후 응답 전용 필드(감성 라벨 등) 추가나 개인정보 제외 시 도메인을 건드리지 않고 여기서만 변경. `serving/api/main.py` — `GET /reviews/{appid}` 추가: 경로 파라미터 `appid: int`(FastAPI가 자동 형변환·검증→실패 시 422), 기본값 인자 `limit: int = 20`은 **쿼리 파라미터**로 해석(경로에 없으므로), 반환 타입 `list[ReviewOut]`이 곧 응답 스키마 선언(`/docs` 자동 문서화). `PostgreReviewRepository.get_by_appid`(F1.4) 호출 후 `[ReviewOut.model_validate(r) for r in reviews]`로 도메인→응답 변환. `scripts/check_api.py` — `httpx.get(params=...)`로 실행 중 서버에 요청, `raise_for_status()`로 조용한 실패 차단. 검증: `uvicorn ...` 기동 후 `python scripts/check_api.py 570 5`로 조회, `/docs`에 스키마와 함께 `/reviews/{appid}` 노출, `invoke check` 통과. **주의**: `schemas.py`는 `Review`를 **import 하지 않음** — `from_attributes`는 런타임 속성 접근(덕 타이핑)이라 타입 참조 불필요, 미사용 import는 Ruff `F401`로 걸림. **부채**: 저장소를 요청마다 새로 생성(F1.4 커넥션 부채 상속) — F4.6 `dependencies.py` 의존성 주입 + Slice 2 SQLAlchemy 세션에서 해소.
 
-> **F2.1 완료 내역**: SQLAlchemy 2.0 ORM 토대 2파일. `storage/postgres/models.py` — `DeclarativeBase` 상속 `Base` + `ReviewORM`(`__tablename__="reviews"`). 컬럼은 `Mapped[T]`(파이썬 타입 힌트=mypy용) + `mapped_column(...)`(DB 제약·SQL타입) 조합의 2.0 스타일. 64비트 필요한 `id`·`recommendation_id`·`appid`는 `BigInteger` 명시(`int` 기본은 `Integer`), `content`는 길이 없는 `String`→`TEXT`, `created_at`/`collected_at`은 `DateTime(timezone=True)`→`TIMESTAMPTZ`(F1.2 tz 인식 값과 짝). `recommendation_id`만 `unique=True`(FK 대상), `appid`는 `index=True`. **`ReviewORM`≠도메인 `Review`**(F1.1) — ORM엔 DB `id` 있고 프레임워크 의존, 도메인은 순수 dataclass(계층 격리·원칙 2). `storage/postgres/session.py` — `create_engine(settings.db.url, pool_pre_ping=True)`로 커넥션 풀 품은 엔진 1개(모듈 로드 시 1회). `settings.db.url`의 `+psycopg` 접미사를 SQLAlchemy가 읽어 psycopg3 드라이버 선택(F1.4 raw 저장소는 반대로 이 접미사를 뗐음). `sessionmaker(bind=engine, expire_on_commit=False)`로 세션 팩토리 — `False`라 commit 후에도 속성 접근 가능(직렬화 편의). **토대만**: 아직 `repository.py`·API가 import 안 함 → 앱 동작 F1.5와 동일(원칙 3). 배선은 F2.2(Alembic이 `Base.metadata` 읽음)·F2.3(저장소가 `SessionLocal` 사용)에서. 검증: `Base.metadata.tables`에 `reviews` 존재, `CreateTable(ReviewORM.__table__)` DDL이 ERD와 일치, `SELECT 1` 커넥션 확인, `invoke check` 통과. **주의**: `pool_pre_ping`으로 죽은 커넥션(유휴 타임아웃·DB 재시작) 재사용 방지 — F1.4 매 호출 새 커넥션 부채의 해소 토대(실사용은 F2.3).
-
-**▶️ 다음 작업**: Slice 2 · F2.2 (Alembic 마이그레이션) — `alembic init`으로 `alembic/` 구성 후 `env.py`가 `models.Base`(F2.1)의 `metadata`를 `target_metadata`로 바라보게 배선, `settings.db.url`을 DSN으로 주입. 첫 마이그레이션을 `--autogenerate`로 생성해 `reviews` 테이블 DDL을 코드로 남긴다. 이후 pgvector 확장·`vector(768)`·HNSW 인덱스는 `op.execute()`로 명시 삽입(Slice 4). `repository.py`의 임시 `_CREATE_TABLE` DDL은 F2.3에서 제거.
+**▶️ 다음 작업**: Slice 2 · F2.1 (SQLAlchemy ORM) — `storage/postgres/models.py`에 `ReviewORM`(`DeclarativeBase` 상속) 정의, `storage/postgres/session.py`에 `SessionLocal`(엔진·세션 팩토리) 구성. F1.4의 psycopg raw SQL 저장소를 ORM 기반으로 옮길 토대를 놓는다(교체는 F2.3). ERD `reviews` 테이블 스키마(§테이블 상세)를 ORM 컬럼으로 1:1 매핑.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
