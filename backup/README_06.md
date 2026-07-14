@@ -148,18 +148,6 @@ korean-steam-review-rag/
 | F0.4 | FastAPI 뼈대 + `/health` | ✅ |
 | F0.5 | Invoke 태스크 + CI 뼈대 | ✅ |
 
-**Slice 1 기능 진행**
-
-| 기능 | 이름 | 상태 |
-|---|---|---|
-| F1.1 | 도메인 모델 + 인터페이스 | ✅ |
-| F1.2 | Steam 수집기 | ⬜ |
-| F1.3 | 최소 정제 | ⬜ |
-| F1.4 | Postgres 저장 (raw) | ⬜ |
-| F1.5 | 조회 API | ⬜ |
-
-> **F1.1 완료 내역**: `domain/models.py` — `Review` 엔티티를 표준 라이브러리 `@dataclass(frozen=True, slots=True)`로 정의(불변 값 객체·메모리 절약·오타 속성 차단). **프레임워크 import 0**(Pydantic조차 안 씀 — 도메인은 순수 파이썬, 검증은 경계인 `schemas.py`/`settings.py`가 담당). DB 자동증가 `id`는 도메인에서 제외하고 Steam `recommendation_id`(자연 키)만 보유 → 도메인 엔티티 ≠ DB 행(계층 격리). `domain/interfaces.py` — `ReviewCollector`·`ReviewRepository`를 `abc.ABC`가 아닌 `typing.Protocol`(+`@runtime_checkable`)로 정의: **구조적 서브타이핑**이라 구현체가 도메인을 상속·import 하지 않아도 mypy가 계약 만족을 정적 검증 → 의존 방향 완전 차단(원칙 1·2). 반환 타입은 최소 능력만 요구(`collect`→`Iterable`로 제너레이터 허용, `get_by_appid`→`Sequence`로 `len()`·인덱싱 허용). 검증: import·Ruff(E·F·I·UP·B)·mypy strict 통과, 상속 없는 `InMemoryRepo`가 `ReviewRepository`로 인정되고 멱등 저장(중복 `recommendation_id` 무시)·`frozen` 변경 차단 동작 확인. **주의**: `frozen=True`+`slots=True` 조합에선 필드 변경 시 `AttributeError`가 아니라 `FrozenInstanceError`가 먼저 발생.
-
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
 > **F0.2 완료 내역**: `docker-compose.yml`(pgvector/pgvector:pg16 · named volume `pgdata` · `pg_isready` 헬스체크) + `docker-compose.override.yml`(로컬 전용 `5432` 포트 노출). 검증: `docker compose up -d` → `(healthy)`, `pg_available_extensions`에 `vector` 존재 확인. `.env`는 임시 최소본(POSTGRES_* · DB_PORT), F0.3에서 `.env.example`로 정식화 예정.
@@ -170,9 +158,7 @@ korean-steam-review-rag/
 
 > **F0.5 완료 내역**: `tasks.py` — Invoke 태스크(`lint`·`fmt`·`typecheck`·`test`·`up`·`down` + pre-task로 묶은 `check`). Windows에 `make`가 없어 파이썬 기반 러너 사용. `c.run()`으로 실제 명령(ruff·mypy·docker compose) 위임 → **로컬과 CI가 같은 명령**을 호출. `.github/workflows/ci.yml` — push·main대상 PR 트리거, `actions/checkout@v4` + `actions/setup-python@v5`(3.13, pip 캐시) + `pip install -r requirements-dev.txt` + `pip install -e .` → `invoke lint`·`invoke typecheck`(테스트 스텝은 테스트 도입되는 Slice 8까지 보류). `pyproject.toml`에 `[tool.mypy]`(strict·`files=["src","tests"]`·`ignore_missing_imports`) 추가해 그간 CLI 인자에 의존하던 설정을 파일로 고정. `requirements-dev.txt`의 `invoke` 버전 핀(`2.*`). `tests/__init__.py` 추가로 빈 디렉터리 mypy 에러 방지. 검증: `invoke lint`·`typecheck`·`check` 통과, `ci.yml` YAML 파싱·트리거·스텝 확인. **주의**: Pydantic v2·FastAPI는 자체 타입 정보를 완비해 별도 mypy 플러그인 없이 strict 통과(단, 런타임 deps가 설치돼 있어야 함 — 미설치 시 라이브러리를 Any로 봐 오탐).
 
-**▶️ 다음 작업**: Slice 1 · F1.2 (Steam 수집기) — `ingestion/collectors/steam.py`. `httpx`로 공개 엔드포인트(`store.steampowered.com/appreviews/<appid>?json=1&language=koreana&num_per_page=100&cursor=*`) 호출, 응답 `cursor`로 페이지네이션, 원본 dict → `Review`(F1.1) 변환. 반환은 `Iterable[Review]`(제너레이터). API 키 불필요. `@runtime_checkable`로 `ReviewCollector` 계약 만족을 검증.
-
-
+**▶️ 다음 작업**: Slice 1 · F1.1 (도메인 모델 + 인터페이스) — `domain/models.py`에 `Review` 엔티티, `domain/interfaces.py`에 `ReviewCollector`·`ReviewRepository` 프로토콜. **프레임워크 import 0**(순수 도메인). Slice 1은 "리뷰 1개가 수집→저장→API 조회"로 관통되는 가장 중요한 슬라이스(★).
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
