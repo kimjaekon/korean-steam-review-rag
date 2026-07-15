@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     embedding_model: str = "jhgan/ko-sroberta-multitask"  # EMBEDDING_MODEL — 임베딩 모델(768-dim)
     steam_language: str = "koreana"  # STEAM_LANGUAGE — 수집 리뷰 언어 필터
     agent_mode: str = "simple"  # AGENT_MODE — LangChain 단발(한번요청하면 끝) ↔ LangGraph
+    sentiment_model: str = "tabularisai/multilingual-sentiment-analysis"  # SENTIMENT_MODEL — 감성 분석 모델(5-class)
 
 
 settings = Settings()

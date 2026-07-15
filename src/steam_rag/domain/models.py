@@ -17,3 +17,13 @@ class Review:
     votes_helpful: int
     created_at: datetime
     collected_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class SentimentResult:
+    """리뷰 한개의 감정 분석 결과"""
+
+    review_recommendation_id: int
+    sentiment_score: float
+    sentiment_label: str
+    matches_voted_up: bool

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Integer, String
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column  # DeclarativeBase : 이 클래스는 DB 테이블과 매핑되는 ORM 클래스다 선언
 
 
@@ -26,3 +26,15 @@ class ReviewORM(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ReviewAnalysisORM(Base):
+    __tablename__ = "review_analysis"
+
+    review_recommendation_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("reviews.recommendation_id", ondelete="CASCADE"), primary_key=True)
+
+    sentiment_score: Mapped[float] = mapped_column(Float, nullable=False)
+    sentiment_label: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    matches_voted_up: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
