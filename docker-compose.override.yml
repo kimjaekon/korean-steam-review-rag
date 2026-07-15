@@ -9,3 +9,7 @@ services:
     # (이미 5432 를 다른 Postgres 가 쓰고 있으면 .env 에서 DB_PORT=5433 등으로 바꾸면 됨)
     ports:
       - "${DB_PORT:-5432}:5432"
+
+  redis:
+    ports:
+      - "${REDIS_PORT:-6379}:6379"

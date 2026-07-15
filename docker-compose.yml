@@ -32,6 +32,18 @@ services:
     # 컨테이너가 죽으면 자동 재시작(수동 stop 은 제외).
     restart: unless-stopped
 
+   # ── Redis (캐시) ──
+  # get_by_appid 결과를 캐싱해 반복 조회 시 Postgres 왕복을 없앤다(F2.4).
+  redis:
+    image: redis:7-alpine          # 경량 alpine 기반. 태그 핀으로 재현성 고정
+    container_name: steam_rag_redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]  # PONG 이 오면 정상
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
 # 위에서 참조한 명명 볼륨을 여기서 선언. Docker 가 관리하는 영속 저장소.
 volumes:
   pgdata:

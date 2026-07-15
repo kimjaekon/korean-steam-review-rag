@@ -21,6 +21,17 @@ class LLMSettings(BaseModel):
     num_ctx: int = 8192
 
 
+class RedisSettings(BaseModel):
+    host: str = "localhost"
+    port: int = 6379
+    db: int = 0  # Redis 논리 DB번호(0~15). 0번을 캐시 용도로 사용
+    ttl_seconds: int = 300  # 캐시 만료 시간(초): Time To Live
+
+    @property
+    def url(self) -> str:
+        return f"redis://{self.host}:{self.port}/{self.db}"
+
+
 class Settings(BaseSettings):
     # model_config: 이 BaseSettings 가 "어떻게 값을 읽을지" 규칙을 정함
     model_config = SettingsConfigDict(
@@ -34,6 +45,7 @@ class Settings(BaseSettings):
     # 그룹 필드: 각각 정의한 default_factory로 "값 없으면 기본값들로 생성"
     db: DatabaseSettings = DatabaseSettings()
     llm: LLMSettings = LLMSettings()
+    redis: RedisSettings = RedisSettings()
 
     # 최상위 평면 필드: 서로 무관
     vector_backend: str = "pgvector"
