@@ -130,8 +130,8 @@ korean-steam-review-rag/
 |---|---|---|
 | 0 | 뼈대 (Skeleton) | ✅ |
 | 1 | 얇은 관통 (Walking Skeleton) | ✅ |
-| 2 | 저장 계층 정식화 | ✅ |
-| 3 | 분석 파이프라인 | 🟦 |
+| 2 | 저장 계층 정식화 | 🟦 |
+| 3 | 분석 파이프라인 | ⬜ |
 | 4 | AI/RAG (LangChain) | ⬜ |
 | 5 | LangGraph 에이전트 | ⬜ |
 | 6 | 스트리밍 & 오케스트레이션 | ⬜ |
@@ -167,19 +167,6 @@ korean-steam-review-rag/
 | F2.3 | Repository 패턴 | ✅ |
 | F2.4 | Redis 캐시 | ✅ |
 
-**Slice 3 기능 진행**
-
-| 기능 | 이름 | 상태 |
-|---|---|---|
-| F3.1 | 한국어 언어 필터 | ✅ |
-| F3.2 | 수집 파이프라인 오케스트레이션 | ⬜ |
-| F3.3 | 감성 분석 | ⬜ |
-| F3.4 | 평가지표 + 임계값 보정 | ⬜ |
-| F3.5 | 토픽 분석 | ⬜ |
-| F3.6 | 토픽 이름 생성 | ⬜ |
-| F3.7 | 피처 추출 | ⬜ |
-| F3.8 | Great Expectations 검증 | ⬜ |
-
 > **F0.1 완료 내역**: `src/steam_rag/` 패키지 뼈대(§4 트리) · `pyproject.toml`(Ruff·mypy) · `requirements.txt`/`requirements-dev.txt`(버전 핀) · `.vscode/`(인터프리터·저장 시 Ruff) · `.gitignore`. 검증: `pip install -e .`로 패키지 인식, Ruff `select`(I·F 등)·mypy `strict` 동작 확인.
 
 > **F0.2 완료 내역**: `docker-compose.yml`(pgvector/pgvector:pg16 · named volume `pgdata` · `pg_isready` 헬스체크) + `docker-compose.override.yml`(로컬 전용 `5432` 포트 노출). 검증: `docker compose up -d` → `(healthy)`, `pg_available_extensions`에 `vector` 존재 확인. `.env`는 임시 최소본(POSTGRES_* · DB_PORT), F0.3에서 `.env.example`로 정식화 예정.
@@ -208,9 +195,7 @@ korean-steam-review-rag/
 
 > **F2.4 완료 내역**: Redis 캐시를 데코레이터 패턴으로 도입, 저장소 2파일 + 배선. `storage/cache.py` — `RedisCache`가 `redis-py`의 `Redis.from_url`(`redis://host:port/db` 문자열 하나로 커넥션 풀까지 구성)로 범용 문자열 캐시 제공. **지연 초기화**: 클라이언트를 `@cached_property`로 두어 첫 접근 시 연결하고 이후 캐싱된 같은 클라이언트를 재사용 — F2.1 `session.py`가 모듈 로드 시 엔진을 만든 것과 달리 "캐시는 없어도 앱이 떠야" 하므로 더 게으르게. `decode_responses=True`로 바이트 대신 `str` 수신(→ `json.loads` 직결), `set(..., ex=ttl)`로 **TTL 만료를 Redis에 위임**(만료 타이머 손구현 안 함, 원칙 4), `get`이 없는 키에 `None`을 돌려주는 규약을 캐시 미스 신호로 활용. `storage/caching_repository.py` — `CachingReviewRepository`가 `ReviewRepository` 프로토콜(F1.1)을 **감싸는 데코레이터**: 생성자로 내부 저장소를 받아(`self._inner`) 위임하고 상속하지 않음 → 내부 저장소가 무엇이든(프로토콜 타입) 상관없음. **선택적 캐싱**: `get_by_appid`만 `reviews:{appid}:{limit}` 키로 캐싱(히트→JSON 복원 반환, 미스→DB 호출 후 적재), `save_many`는 정합성 위해 pass-through(쓰기 미캐싱). **직렬화 경계**: 도메인 `Review`는 순수 dataclass라 JSON을 모르므로 `_to_json`/`_from_json`이 캐싱 저장소 안에서만 `asdict`+`datetime.isoformat()`↔`fromisoformat()` 변환(계층 격리, F1.3 Pandas 왕복과 동형). **타입 좁히기**: `json.loads` 결과가 strict에서 `object`라 `_from_json`은 `typing.cast`로 각 값을 좁힌 뒤 `int()`/`str()`로 변환 — `repository.py`의 `cast("CursorResult[object]", ...)` 스타일과 통일(`cast`는 런타임 무동작 정적 힌트, 실변환은 뒤의 `int(...)`가 담당). **원칙 1 실증**: `main.py`는 `CachingReviewRepository(PostgresReviewRepository(), RedisCache())`로 래핑만 하고 반환 타입·`ReviewOut` 변환을 **무변경** 유지 — 저장소가 프로토콜 뒤에 숨어 API·도메인이 캐시 개입을 모름. 인프라·설정: `docker-compose.yml`에 `redis:7-alpine`(healthcheck `redis-cli ping`) 추가, `override.yml`에 로컬 포트(`REDIS_PORT`), `settings.py`에 `RedisSettings`(host·port·db·ttl_seconds + `url` 프로퍼티)와 `redis` 필드, `.env.example`에 `REDIS__*`·`REDIS_PORT`, `requirements.txt`에 `redis==5.*` 핀. 검증: `scripts/check_cache.py 570 5`로 miss→hit 지연 차이와 동일 데이터 확인, `redis-cli KEYS/TTL`로 키·만료 확인, `scripts/check_api.py`가 F1.5와 동일 응답(캐시 무영향), `invoke check` 통과. **부채**: 저장소를 요청마다 새로 생성(F1.5 상속) — F4.6 `dependencies.py` 의존성 주입에서 해소.
 
-> **F3.1 완료 내역**: `etl/language.py` — `filter_korean(Iterable[Review]) -> list[Review]`가 `langdetect`로 비한국어 리뷰를 2차 필터링. **재현성**: langdetect는 확률 기반 비결정적 알고리즘이라 짧은 텍스트는 실행마다 결과가 달라질 수 있어, 모듈 로드 시 `DetectorFactory.seed=0`을 클래스 속성으로 한 번 고정(원칙 4 — 손구현 대신 라이브러리의 재현성 스위치 사용). `is_korean`이 `detect(text)=="ko"`를 판별하되 `LangDetectException`(공백·이모지/기호-only·초단문에서 발생)을 잡아 "한국어 아님"(False)으로 처리해 필터 전체가 죽지 않게 방어. **설계 판단**: F1.3 `clean_reviews`와 별도 함수로 분리(관심사 격리 + 느린 langdetect를 빈·중복 제거 뒤에 실행해 낭비 차단) → `filter_korean(clean_reviews(raw))`로 체이닝. Pandas 왕복 대신 리스트 컴프리헨션 사용(언어 판별은 본질적으로 행 단위라 벡터화 이득이 없고 계층 격리가 더 단순). 판별 대상은 `review.content`뿐이라 도메인 `Review`는 무변경 통과(계층 격리). `requirements.txt`에 `langdetect==1.0.9` 핀(사실상 마지막 안정 버전이라 정확 핀). 검증: `scripts/filter_korean.py 570 100`으로 수집→정제→언어필터 단계별 카운트, 제외 리뷰 미리보기로 영문·기호-only 확인, 재실행 시 동일 결과(seed 재현성), `invoke check` 통과. **주의**: `scripts`의 `r not in korean` 제외 추출은 O(n²) 선형 탐색이나 검증 전용 편의 코드 — 실제 파이프라인 조립은 F3.2 `etl/pipeline.py`에서 정식화.
-
-> **▶️ 다음 작업**: Slice 3 · F3.2 (수집 파이프라인 오케스트레이션) — `etl/pipeline.py`에 `ingest_reviews()`를 만들어 collector→clean→filter→save 네 단계를 하나로 꿴다. 지금까지 `scripts/`에서 수동으로 조합하던 흐름(수집→`clean_reviews`→`filter_korean`→`PostgresReviewRepository.save_many`)을 단일 함수로 정식화하고, 실행 진입점은 `scripts/produce_reviews.py`. F3.1의 O(n²) 검증 편의 코드 같은 임시 조립을 여기서 해소.
+> **▶️ 다음 작업**: Slice 3 · F3.1 (언어 필터) — `etl/language.py`로 `langdetect`를 써서 수집 리뷰 중 한국어가 아닌 것을 2차 필터링. `settings.steam_language`(§6 교체 지점)로 이미 `koreana`만 수집하지만, 응답에 섞이는 소수 비한국어(영문 병기·이모지/기호-only 등)를 정제 단계에서 걸러낸다. F1.3 `clean_reviews`(Pandas 왕복) 뒤에 언어 필터를 이어 붙이는 형태로 조합(빈·중복 제거 → 언어 판별). `langdetect`가 하는 일은 손구현하지 않고 사용법 습득에 집중(원칙 4). `requirements.txt`에 `langdetect` 핀 예정.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
