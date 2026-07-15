@@ -172,7 +172,7 @@ korean-steam-review-rag/
 | 기능 | 이름 | 상태 |
 |---|---|---|
 | F3.1 | 한국어 언어 필터 | ✅ |
-| F3.2 | 수집 파이프라인 오케스트레이션 | ✅ |
+| F3.2 | 수집 파이프라인 오케스트레이션 | ⬜ |
 | F3.3 | 감성 분석 | ⬜ |
 | F3.4 | 평가지표 + 임계값 보정 | ⬜ |
 | F3.5 | 토픽 분석 | ⬜ |
@@ -210,9 +210,7 @@ korean-steam-review-rag/
 
 > **F3.1 완료 내역**: `etl/language.py` — `filter_korean(Iterable[Review]) -> list[Review]`가 `langdetect`로 비한국어 리뷰를 2차 필터링. **재현성**: langdetect는 확률 기반 비결정적 알고리즘이라 짧은 텍스트는 실행마다 결과가 달라질 수 있어, 모듈 로드 시 `DetectorFactory.seed=0`을 클래스 속성으로 한 번 고정(원칙 4 — 손구현 대신 라이브러리의 재현성 스위치 사용). `is_korean`이 `detect(text)=="ko"`를 판별하되 `LangDetectException`(공백·이모지/기호-only·초단문에서 발생)을 잡아 "한국어 아님"(False)으로 처리해 필터 전체가 죽지 않게 방어. **설계 판단**: F1.3 `clean_reviews`와 별도 함수로 분리(관심사 격리 + 느린 langdetect를 빈·중복 제거 뒤에 실행해 낭비 차단) → `filter_korean(clean_reviews(raw))`로 체이닝. Pandas 왕복 대신 리스트 컴프리헨션 사용(언어 판별은 본질적으로 행 단위라 벡터화 이득이 없고 계층 격리가 더 단순). 판별 대상은 `review.content`뿐이라 도메인 `Review`는 무변경 통과(계층 격리). `requirements.txt`에 `langdetect==1.0.9` 핀(사실상 마지막 안정 버전이라 정확 핀). 검증: `scripts/filter_korean.py 570 100`으로 수집→정제→언어필터 단계별 카운트, 제외 리뷰 미리보기로 영문·기호-only 확인, 재실행 시 동일 결과(seed 재현성), `invoke check` 통과. **주의**: `scripts`의 `r not in korean` 제외 추출은 O(n²) 선형 탐색이나 검증 전용 편의 코드 — 실제 파이프라인 조립은 F3.2 `etl/pipeline.py`에서 정식화.
 
-> **F3.2 완료 내역**: `etl/pipeline.py` — `ingest_reviews(collector, repository, appid, limit)`가 collect→clean→filter→save 네 단계를 단일 함수로 정식화. **의존성 주입**: `SteamReviewCollector`·`PostgresReviewRepository`를 직접 import하지 않고 `domain.interfaces`의 `ReviewCollector`·`ReviewRepository` 프로토콜(F1.1)만 인자로 받아, 파이프라인이 스팀·포스트그레스를 모름(원칙 1·2) → Slice 6 Kafka 컨슈머·Airflow DAG가 재사용 가능. 구체 구현 생성·주입은 경계인 `scripts/produce_reviews.py`가 담당. 반환은 `IngestResult`(frozen·slots dataclass, `Review`와 동일 관례)로 단계별 개수(collected/cleaned/korean/saved)를 묶어 관측·검증에 활용. **생명주기 분리**: `httpx.Client`를 든 collector의 `close()`는 프로토콜에 없어 오케스트레이터가 아닌 스크립트가 `try/finally`로 관리(자원 만든 쪽이 닫음). 순서 판단: 느린 langdetect(F3.1)를 빈·중복 제거(F1.3) 뒤에 둬 낭비 차단, 저장은 언어필터 통과분만. **F3.1 부채 해소**: `scripts/filter_korean.py`의 O(n²) `r not in korean` 제외 추출을 파이프라인이 세어 돌려주는 카운트로 대체. 검증: `scripts/produce_reviews.py 570 100`으로 4단계 카운트 확인, 재실행 시 `저장: 0개`(멱등, F2.3 `on_conflict_do_nothing`), `check_api.py`가 F1.5와 동일 응답(파이프라인 무영향), `invoke check` 통과.
-
-> **▶️ 다음 작업**: Slice 3 · F3.3 (감성 분석) — `etl/analysis/sentiment.py`에서 `transformers`의 `tabularisai/multilingual-sentiment-analysis`(5-class)로 리뷰 감성을 예측하고, `storage/postgres/analysis_repository.py`(`ON CONFLICT DO UPDATE`)에 저장한다. 실행 진입점은 `scripts/analyze_sentiment.py`. 스팀의 `voted_up` 정답 라벨과 대조해 F3.4 평가지표(balanced accuracy·F1)로 이어질 토대.
+> **▶️ 다음 작업**: Slice 3 · F3.2 (수집 파이프라인 오케스트레이션) — `etl/pipeline.py`에 `ingest_reviews()`를 만들어 collector→clean→filter→save 네 단계를 하나로 꿴다. 지금까지 `scripts/`에서 수동으로 조합하던 흐름(수집→`clean_reviews`→`filter_korean`→`PostgresReviewRepository.save_many`)을 단일 함수로 정식화하고, 실행 진입점은 `scripts/produce_reviews.py`. F3.1의 O(n²) 검증 편의 코드 같은 임시 조립을 여기서 해소.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
