@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import CursorResult
+from sqlalchemy import CursorResult  # CursorResult: SQL을 실행한 결과를 담는 클래스
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from steam_rag.domain.models import SentimentResult
