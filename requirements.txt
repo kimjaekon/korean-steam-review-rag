@@ -15,3 +15,5 @@ transformers==4.*         # Hugging Face 모델 파이프라인. 감성 분석(S
 # pip install torch --index-url https://download.pytorch.org/whl/cu128
 
 scikit-learn==1.*          # 머신러닝 라이브러리( 분류(Classification), 회귀(Regression), 클러스터링, 차원 축소, 데이터 전처리, 모델 평가, 데이터 분할 )
+bertopic==0.17.*          # 토픽 모델링(임베딩→UMAP→HDBSCAN→c-TF-IDF). Slice 3 토픽 분석. sentence-transformers·umap-learn·hdbscan 함께 설치됨
+
