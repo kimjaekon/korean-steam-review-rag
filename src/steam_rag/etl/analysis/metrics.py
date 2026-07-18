@@ -3,12 +3,13 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix, precision_recall_fscore_support
+
 """
 balanced_accuracy_score             : 클래스 불균형을 고려한 정확도 계산    : float
 confusion_matrix                    : 실제값과 예측값을 표 형태로 비교	    : ndarray
 precision_recall_fscore_support	    : Precision, Recall, F1-score 계산	: (precision, recall, f1, support)
 """
-from sklearn.metrics import balanced_accuracy_score, confusion_matrix, precision_recall_fscore_support
 
 
 @dataclass(frozen=True, slots=True)
