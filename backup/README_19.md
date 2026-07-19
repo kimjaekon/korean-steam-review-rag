@@ -124,7 +124,7 @@ korean-steam-review-rag/
 > 이 섹션이 **세션 간 연속성의 기준(single source of truth)**입니다. 작업이 진행되면 여기를 갱신합니다.
 > 상태: ⬜ 예정 · 🟦 진행 중 · ✅ 완료
 
-**전체 진척: Slice 3(분석 파이프라인) 진행 중 — F3.1~F3.5 완료, 다음 F3.6(토픽 이름 생성)**
+**전체 진척: Slice 1(얇은 관통) 완료 ★ — Slice 2(저장 계층 정식화) 진행 예정**
 
 | 슬라이스 | 이름 | 상태 |
 |---|---|---|
@@ -175,7 +175,7 @@ korean-steam-review-rag/
 | F3.2 | 수집 파이프라인 오케스트레이션 | ✅ |
 | F3.3 | 감성 분석 | ✅ |
 | F3.4 | 평가지표 + 임계값 보정 | ✅ |
-| F3.5 | 토픽 분석 | ✅ |
+| F3.5 | 토픽 분석 | ⬜ |
 | F3.6 | 토픽 이름 생성 | ⬜ |
 | F3.7 | 피처 추출 | ⬜ | 
 | F3.8 | Great Expectations 검증 | ⬜ |
@@ -216,9 +216,7 @@ korean-steam-review-rag/
 
 > **F3.4 완료 내역**: 평가지표·임계값 보정 3파일(분할·지표·진입점), DB 저장 없는 오프라인 분석. `etl/analysis/split.py` — `stratified_split`이 **scikit-learn** `train_test_split(stratify=labels)`로 리뷰를 train/test 계층 분할: `voted_up` 비율을 양쪽에 동일 유지(안 하면 test가 우연히 추천 100%가 돼 비추천 예측력을 평가 못 함). `random_state=42`로 재현성 고정(F3.1 `DetectorFactory.seed=0`과 동형 — 무작위 라이브러리에 결정론 주입, 원칙 4). `train_test_split`은 넘긴 시퀀스를 그대로 쪼개 반환하므로 `Review` 리스트를 통째로 넘겨 `Review` 리스트로 받음. 반환 타입을 `tuple[list[Review], list[Review]]`로 **명시**해야 mypy strict 통과(라이브러리 반환이 `Any` 계열이라 시그니처가 계약 역할). `etl/analysis/metrics.py` — 순수 계산 모듈: 입력을 `SentimentResult`가 아닌 **원시 배열**(`Sequence[float]` 점수 + `Sequence[bool]` 정답)로 받아 감성 도메인과 결합을 끊음(다른 분류 평가에도 재사용 가능, 계층 격리). `evaluate_at_threshold`가 `[s >= threshold ...]`로 이진화(F3.3 하드코딩 `0.5`를 인자로 승격 — 이게 '보정'의 실체) 후 3지표 계산: `balanced_accuracy_score`(각 클래스 recall 평균 → '무조건 추천 찍기'를 0.5로 폭로, 불균형 착시 교정), `precision_recall_fscore_support(average=\"binary\", zero_division=0.0)`에서 F1만 취함(`(p,r,f,support)` 튜플 반환, `zero_division`으로 극단 임계값의 0-나눗셈 방어), `confusion_matrix(labels=[False, True])`로 2x2 순서 고정 후 `(tn,fp),(fn,tp)` 언팩(한쪽 클래스만 등장해도 형태 보장). 결과는 `ThresholdMetrics`(frozen·slots, `Review`와 동일 관례)에 4칸 confusion까지 담아 '어디서 틀리는지'(예: `fn` 급증=추천을 비추천으로 오판) 진단 가능. numpy 타입은 `float()`/`int()`로 표준화(F1.3 `numpy.bool_` 계열 대비). `sweep_thresholds`가 `0.30~0.70`(9개, 0.05 간격) 훑고 `best_by_balanced_accuracy`가 내장 `max(key=...)`로 최적 선택(F1 아닌 balanced accuracy 기준 — 불균형에 정직). `scripts/calibrate.py` — 조회(F2.3)→분할→예측(F3.3 재사용, train·test 각각)→train에서만 최적 임계값 탐색→**처음 보는 test에서 검증**(과적합 방지의 정석) 진입점. **핵심 함정**: 정답 라벨을 `SentimentResult`에서 못 가져옴 — 거긴 `matches_voted_up`(0.5 기준 결과)만 있어 다른 임계값 실험엔 오염된 값. 원본 `Review.voted_up`에서 추출하되, `analyze()`가 입력 순서를 보존하므로(F3.3 `zip(strict=True)`) train/test 리뷰와 예측을 순서로 짝지음. 0.5(기존)와 선택 임계값을 test에서 나란히 출력해 개선 근거 제시. `requirements.txt`에 `scikit-learn==1.*` 핀. 검증: `scripts/calibrate.py 570 200`으로 분할 비율·스윕 표(confusion 포함)·train↔test 대조 확인, `invoke check` 통과. **주의**: train 최적 임계값이 test에서 무너지면(예: train 0.45 최적인데 test에선 0.5가 더 나음) 표본 부족 신호 — 분할이 이 과적합을 드러내는 게 F3.4의 값어치. `confusion_matrix` 언팩은 numpy `Any` 취급이라 mypy가 눈감아주나 런타임 정상. **부채**: 찾은 임계값을 `sentiment.py`의 하드코딩 `0.5` 대신 쓰거나 settings로 빼는 '적용'은 별도(이번 범위는 '탐색·검증'까지).
 
-> **F3.5 완료 내역**: `etl/analysis/topic.py` — `BERTopicAnalyzer`가 **BERTopic**으로 한국어 리뷰를 토픽 군집화(F3.4처럼 DB 저장 없는 오프라인 분석). **파이프라인 위임(원칙 4)**: `fit_transform` 한 줄이 임베딩→UMAP→HDBSCAN→c-TF-IDF 전 과정 수행 — 군집화·차원축소·키워드추출을 손구현하지 않고 라이브러리 사용법 습득에 집중. **부품 조립**: `embedding_model`은 `settings.embedding_model`(ko-sroberta, 768-dim)에서 주입(교체 가능성·원칙 1), `umap_model`은 `UMAP(random_state=42)`를 직접 만들어 끼워 재현성 확보(F3.1 `seed=0`·F3.4 `random_state=42`와 동일 패턴 — bertopic 기본 UMAP은 seed 미고정이라 직접 주입), `vectorizer_model`은 `CountVectorizer(analyzer="char_wb", ngram_range=(2,4))`. **char_wb 선택 이유**: 한국어는 교착어라 공백 기준 단어 분리(`analyzer="word"`)가 부실 → konlpy 같은 형태소 분석기 없이 sklearn의 글자 n-gram으로 하위 단어를 잡음. **핵심 이해**: BERTopic은 군집화(임베딩+UMAP+HDBSCAN)와 키워드추출(벡터라이저)이 분리돼, char_wb는 '어느 토픽에 묶이나'가 아니라 '토픽 대표어가 뭘로 보이나'에만 영향 — 키워드가 "재밌", "미있게" 같은 글자 조각으로 나오는 건 정상이고 F3.6 LLM이 사람 읽는 이름으로 정리. **결과 구조**: `Topic`(topic_id·count·keywords)·`TopicResult`(topics + `assignments` dict)를 `Review`와 동일 관례(frozen·slots)로 분석 계층에 둠(도메인·프로토콜은 YAGNI로 F3.6 저장 도입 시). 개수는 `Counter`로, 키워드는 `get_topics()`로 얻어 pandas 미경유. `assignments`(recommendation_id→topic_id)는 F3.6 `review_topic` 저장의 재료라 미리 산출. `analyze`는 입력 순서 보존 전제로 `zip(strict=True)` 매핑. **디버깅 이력**: (1) `min_df=2`→에러 `max_df < min_df` — c-TF-IDF는 리뷰를 토픽별로 합쳐 넘겨 '문서 수=토픽 수'라 토픽 1개면 `1<2`로 크래시, `min_df=1`로 해소. (2) `get_topic()`(단수, 인자 필요)→`get_topics()`(복수, 전체 dict) 오타 수정. (3) 비문자열 content가 섞이면 `TypeError: only contains strings` → `isinstance(r.content, str) and .strip()` 필터로 방어(걸러진 것과 `zip` 짝 맞춤). `scripts/extract_topics.py` — 조회(F2.3)→분석→토픽 표 출력 진입점(`analyze_sentiment.py` 골격, limit 기본 300으로 상향 — 토픽은 표본이 더 필요). 검증: `scripts/extract_topics.py 578080 300`(PUBG)으로 271개 리뷰 → 토픽 4개(게임 일반/재밌음/친구 협동/버그) + 이상치 1개(0.4%) 확인, `invoke check` 통과. **주의**: appid 570은 최근 한국어 리뷰가 17개뿐이라 토픽이 안 잡혀 578080로 테스트 — 표본 부족 시 전부 이상치(-1)로 빠지는 게 정상(BERTopic은 수백 개 단위에서 의미). **부채**: (1) `min_topic_size`·`ngram_range` 튜닝으로 토픽 0(게임 일반) 세분화 가능 — 완료 기준(토픽 잡힘·배정됨) 충족해 후순위. (2) `produce_reviews`의 `저장: -1개` 표시 버그 — psycopg가 `on_conflict_do_nothing` 영향 행 수 미확정 시 `rowcount=-1` 반환, 동작은 정상(멱등), F2.3에 `max(rowcount, 0)` 적용 예정.
-
-> **▶️ 다음 작업**: Slice 3 · F3.6 (토픽 이름 생성) — `etl/analysis/topic_namer.py`에서 **LLM**으로 F3.5가 뽑은 c-TF-IDF 키워드(글자 조각)를 사람이 읽는 토픽 이름("버그 불만", "친구와 협동 플레이" 등)으로 변환한다. 저장은 `storage/postgres/topic_repository.py`(복합 PK `(appid, topic_id)` UPSERT). 실행 진입점은 `scripts/name_topics.py`. 산출된 이름은 Slice 4 RAG 브리핑 컨텍스트에 얹힌다. — **주의**: F3.6은 LLM을 처음 쓰는 지점이라 `LLMProvider` 추상(F4.2)을 앞당길지, 아니면 F3.6은 간단히 붙이고 F4.2에서 정식화할지 판단 필요.
+> **▶️ 다음 작업**: Slice 3 · F3.5 (토픽 분석) — `etl/analysis/topic.py`에서 **BERTopic**(+ UMAP 차원축소 + `char_wb` 벡터라이저)으로 한국어 리뷰를 토픽으로 군집화한다. 실행 진입점은 `scripts/extract_topics.py`. 감성(무엇을 느꼈나)에 이어 토픽(무엇에 대해 말하나)을 추출하는 단계로, 산출된 토픽은 F3.6에서 LLM으로 사람이 읽는 이름을 얻고 Slice 4 RAG 컨텍스트에 얹힌다.
 
 세부 기능(feature) 단위 체크리스트는 [`docs/ROADMAP.md`](docs/ROADMAP.md) 참조.
 
