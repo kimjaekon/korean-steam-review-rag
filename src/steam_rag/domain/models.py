@@ -27,3 +27,13 @@ class SentimentResult:
     sentiment_score: float
     sentiment_label: str
     matches_voted_up: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TopicName:
+    """토픽 하나 내용 간추림"""
+
+    appid: int
+    topic_id: int
+    name: str  # LLM이 생성한 사람이 읽을 수 있게 변형한 데이터
+    keywords: str  # 대표 키워드 들을 이어붙인 문자열
